@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="rw">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="GUGU App - Gura no kugurisha ibicuruzwa bya kabiri mu Rwanda">
+    <meta name="theme-color" content="#FF6F0F">
+    <title>GUGU App — GuraCyangwaGurisha</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="toast-wrap" class="toast-wrap"></div>
+
+<!-- ═══════════════ GLOBAL HEADER ═══════════════ -->
+<header class="site-header" id="site-header">
+    <div class="site-logo" onclick="App.showPage('home')">
+        <span class="mark">🥕</span> GUGU
+    </div>
+    <div class="header-search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="search" id="search-input" placeholder="Shakisha ibicuruzwa bya kabiri...">
+    </div>
+    <nav class="header-nav">
+        <button class="hdr-btn hdr-btn-sell" onclick="App.showPage('sell')">+ Shyira igicuruzwa</button>
+        <button class="hdr-btn" onclick="App.showPage('chat')" id="hdr-chat">💬 Ubutumwa</button>
+        <div id="hdr-guest">
+            <button class="hdr-btn" onclick="App.showPage('auth')">Injira</button>
+            <button class="hdr-btn" onclick="App.showPage('register')">Iyandikishe</button>
+        </div>
+        <div id="hdr-user" style="display:none" class="hdr-user" onclick="App.showPage('profile')">
+            <div class="hdr-avatar" id="hdr-avatar">G</div>
+            <span id="hdr-name">Njye</span>
+        </div>
+    </nav>
+</header>
+
+<div class="app-shell">
+
+    <!-- ═══════════════ LOGIN ═══════════════ -->
+    <div id="page-auth" class="page">
+        <div class="auth-wrap">
+            <div class="auth-box">
+                <div class="brand">
+                    <div class="logo">🥕</div>
+                    <h1>GUGU</h1>
+                    <p>GuraCyangwaGurisha · 3G Market</p>
+                </div>
+                <h2>Injira</h2>
+                <form onsubmit="App.handleLogin(event)">
+                    <div class="field">
+                        <label>Nomero ya telefoni</label>
+                        <input type="tel" name="phone" placeholder="0789999999" required>
+                    </div>
+                    <div class="field">
+                        <label>Ijambo ry'ibanga</label>
+                        <input type="password" name="password" placeholder="••••••••" required minlength="6">
+                    </div>
+                    <button type="submit" class="btn btn-carrot btn-block">Injira</button>
+                </form>
+                <div class="auth-footer">
+                    Nta konti? <a href="#" onclick="App.showPage('register');return false">Iyandikishe</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ REGISTER ═══════════════ -->
+    <div id="page-register" class="page">
+        <div class="auth-wrap">
+            <div class="auth-box" style="max-width:480px">
+                <div class="brand">
+                    <div class="logo">🥕</div>
+                    <h1>Iyandikishe</h1>
+                    <p>Tangira kugurisha ibicuruzwa byawe</p>
+                </div>
+                <form onsubmit="App.handleRegister(event)">
+                    <div class="field">
+                        <label>Amazina yuzuye</label>
+                        <input type="text" name="full_name" placeholder="Jean Baptiste" required>
+                    </div>
+                    <div class="field">
+                        <label>Nomero ya telefoni</label>
+                        <input type="tel" name="phone" placeholder="0781234567" required>
+                        <p class="hint">MTN/Airtel: 078, 079, 072, 073</p>
+                    </div>
+                    <div class="field">
+                        <label>Ijambo ry'ibanga</label>
+                        <input type="password" name="password" placeholder="Nibura inyuguti 6" required minlength="6">
+                    </div>
+                    <div class="field">
+                        <label>Intara</label>
+                        <select name="province" id="reg-province" required onchange="App.updateDistrictSelect('reg', this.value)">
+                            <option value="">Hitamo intara</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Akarere</label>
+                        <select name="district" id="reg-district" required onchange="App.updateSectorSelect('reg', document.getElementById('reg-province').value, this.value)">
+                            <option value="">Hitamo akarere</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-carrot btn-block">Iyandikishe</button>
+                </form>
+                <div class="auth-footer">
+                    Ufite konti? <a href="#" onclick="App.showPage('auth');return false">Injira</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ HOME (browse grid) ═══════════════ -->
+    <div id="page-home" class="page active">
+        <div class="layout-desktop">
+            <aside class="sidebar">
+                <div class="sidebar-loc">
+                    <label>Ahantu</label>
+                    <select id="sidebar-district" onchange="App.selectDistrict(this.value)">
+                        <option value="">Ahantu hose</option>
+                    </select>
+                </div>
+                <span class="sidebar-reset" onclick="App.resetFilters()">Subiza filtre</span>
+                <ul class="sidebar-cats" id="sidebar-cats"></ul>
+                <div class="sidebar-divider"></div>
+                <span class="sidebar-link" onclick="App.setFilter('free')">🎁 Ubuntu (Ubuntu)</span>
+                <span class="sidebar-link" onclick="App.showPage('favorites')">❤️ Byakunzwe</span>
+            </aside>
+            <main class="main-content">
+                <h1 class="page-title" id="home-title">Ibicuruzwa bya kabiri</h1>
+                <div id="listings-grid" class="product-grid"></div>
+            </main>
+        </div>
+    </div>
+
+    <!-- ═══════════════ SELL / UPLOAD ═══════════════ -->
+    <div id="page-sell" class="page">
+        <div class="sell-layout">
+            <div class="sell-header">
+                <h1>Shyira igicuruzwa gishya</h1>
+                <p>Shyira amashusho, andika igiciro — byoroshye ku buryo bwa GUGU</p>
+            </div>
+
+            <div class="steps-bar">
+                <div class="step-dot done" id="sd1"></div>
+                <div class="step-dot done" id="sd2"></div>
+                <div class="step-dot" id="sd3"></div>
+            </div>
+
+            <form id="sell-form" onsubmit="App.submitListing(event)">
+
+                <!-- STEP 1: Photos -->
+                <div class="upload-section">
+                    <h3>📷 Amashusho</h3>
+                    <p class="sub">Ongeramo amashusho menshi — ibicuruzwa bifite amashusho bigurishwa vuba (max 10)</p>
+                    <div class="photo-grid" id="photo-grid">
+                        <div class="photo-slot photo-add" onclick="document.getElementById('sell-images').click()">
+                            <span class="icon">+</span>
+                            <span>Ongeramo</span>
+                        </div>
+                    </div>
+                    <input type="file" id="sell-images" accept="image/*" multiple hidden onchange="App.handleImageSelect(event)">
+                </div>
+
+                <!-- STEP 2: Title & Category & Price -->
+                <div class="form-section">
+                    <h3>Igicuruzwa</h3>
+                    <div class="form-row">
+                        <label>Ni iki ugurisha?</label>
+                        <input type="text" name="title" placeholder="Urugero: iPhone 13, Sofa, Imyenda..." required maxlength="150">
+                    </div>
+                    <div class="form-row">
+                        <label>Icyiciro</label>
+                        <select name="category_id" id="sell-category" required></select>
+                    </div>
+                    <div class="form-row">
+                        <div class="free-row">
+                            <div class="info">
+                                <div class="title">🎁 Ubuntu (Tanga ubuntu)</div>
+                                <div class="desc">Ntacyo wishyura — tanga ibintu utari ukoresha</div>
+                            </div>
+                            <div id="sell-is-free" class="toggle" onclick="App.toggleFree()"></div>
+                        </div>
+                    </div>
+                    <div class="form-row" id="sell-price-group">
+                        <label>Igiciro</label>
+                        <div class="price-input-wrap">
+                            <input type="number" name="price" placeholder="50000" min="0">
+                            <span class="unit">FRW</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 3: Description & Location -->
+                <div class="form-section">
+                    <h3>Ibisobanuro & Ahantu</h3>
+                    <div class="form-row">
+                        <label>Sobanura igicuruzwa</label>
+                        <textarea name="description" placeholder="Uko cyifashe, impamvu ugurisha, n'ibindi..." required></textarea>
+                    </div>
+                    <div class="form-row-2">
+                        <div class="form-row">
+                            <label>Intara</label>
+                            <select name="province" id="sell-province" required onchange="App.updateDistrictSelect('sell', this.value)">
+                                <option value="">Intara</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Akarere</label>
+                            <select name="district" id="sell-district" required>
+                                <option value="">Akarere</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <label>Umurenge (optional)</label>
+                        <select name="sector" id="sell-sector">
+                            <option value="">Umurenge</option>
+                        </select>
+                    </div>
+                </div>
+
+            </form>
+        </div>
+        <div class="sell-footer">
+            <div class="sell-footer-inner">
+                <button type="button" class="btn btn-outline" onclick="App.goBack()">Hagarika</button>
+                <button type="submit" form="sell-form" class="btn btn-carrot" style="flex:2" id="sell-submit-btn">Shyira igicuruzwa</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ DETAIL ═══════════════ -->
+    <div id="page-detail" class="page">
+        <div class="main-content" style="max-width:960px;margin:0 auto;padding-top:32px">
+            <button class="hdr-btn" onclick="App.goBack()" style="margin-bottom:20px">← Subira inyuma</button>
+            <div class="detail-layout">
+                <div>
+                    <div class="detail-gallery" id="detail-images"></div>
+                    <div class="gallery-thumbs" id="detail-thumbs"></div>
+                </div>
+                <div class="detail-panel" id="detail-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ MY LISTINGS ═══════════════ -->
+    <div id="page-my-listings" class="page">
+        <div class="main-content my-layout">
+            <h1 class="page-title">Ibicuruzwa byanjye</h1>
+            <div class="tabs">
+                <div class="tab on" onclick="App.loadMyListings('active', this)">Biragurishwa</div>
+                <div class="tab" onclick="App.loadMyListings('sold', this)">Byagurishijwe</div>
+            </div>
+            <div id="my-listings-grid" class="product-grid"></div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ FAVORITES ═══════════════ -->
+    <div id="page-favorites" class="page">
+        <div class="main-content">
+            <h1 class="page-title">Byakunzwe ❤️</h1>
+            <div id="favorites-grid" class="product-grid"></div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ PROFILE (My Page) ═══════════════ -->
+    <div id="page-profile" class="page">
+        <div class="main-content my-layout">
+            <div class="profile-banner">
+                <div class="profile-av" id="profile-avatar">G</div>
+                <div class="profile-info">
+                    <h2 id="profile-name">GUGU User</h2>
+                    <p id="profile-location">Kigali, Rwanda</p>
+                </div>
+                <div class="profile-stats">
+                    <div class="pstat"><div class="val" id="stat-listings">0</div><div class="lbl">Biragurishwa</div></div>
+                    <div class="pstat"><div class="val" id="stat-sold">0</div><div class="lbl">Byagurishijwe</div></div>
+                    <div class="pstat"><div class="val" id="stat-favorites">0</div><div class="lbl">Byakunzwe</div></div>
+                </div>
+            </div>
+            <div class="tabs">
+                <div class="tab" onclick="App.showPage('my-listings')">📦 Ibicuruzwa byanjye</div>
+                <div class="tab" onclick="App.showPage('sell')">➕ Shyira igicuruzwa</div>
+                <div class="tab" onclick="App.showPage('favorites')">❤️ Byakunzwe</div>
+            </div>
+            <button class="btn btn-outline" onclick="App.logout()" style="margin-top:8px">Sohoka</button>
+        </div>
+    </div>
+
+    <!-- ═══════════════ CHAT ═══════════════ -->
+    <div id="page-chat" class="page">
+        <div class="main-content">
+            <h1 class="page-title">Ubutumwa</h1>
+            <div class="chat-layout">
+                <div class="chat-sidebar">
+                    <div class="chat-sidebar-head">Ingoro z'ubutumwa</div>
+                    <div id="chat-list"></div>
+                </div>
+                <div class="chat-main" id="chat-main">
+                    <div class="empty-state" style="padding:80px 24px">
+                        <div class="ico">💬</div>
+                        <h3>Hitamo ikiganiro</h3>
+                        <p>Kanda ku butumwa ku ruhande rw'ibumoso</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ USER PROFILE ═══════════════ -->
+    <div id="page-user-profile" class="page">
+        <div class="main-content my-layout">
+            <button class="hdr-btn" onclick="App.goBack()" style="margin-bottom:16px">← Subira</button>
+            <div id="user-profile-content"></div>
+        </div>
+    </div>
+
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

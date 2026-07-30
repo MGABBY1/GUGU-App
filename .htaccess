@@ -1,0 +1,11 @@
+# GUGU App — map Vite base URL /gugu-app/app/ → public/app/
+DirectoryIndex index.php index.html
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /gugu-app/
+
+    # Serve built React app at /gugu-app/app/
+    RewriteRule ^app/?$ public/app/index.html [L]
+    RewriteRule ^app/(.*)$ public/app/$1 [L]
+</IfModule>

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GUGU Admin — Backend</title>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+<div id="login-screen" class="login-screen">
+    <div class="login-card">
+        <div class="login-logo">🥕</div>
+        <h1>GUGU Admin</h1>
+        <p>Backend dashboard — login with your admin account</p>
+        <form onsubmit="Admin.login(event)">
+            <input type="tel" id="admin-phone" placeholder="0789999999" required>
+            <input type="password" id="admin-pass" placeholder="Password" required>
+            <button type="submit">Login to Backend</button>
+        </form>
+        <a href="/gugu-app/" class="back-link">← Back to GUGU App</a>
+    </div>
+</div>
+
+<div id="dashboard" class="dashboard" style="display:none">
+    <aside class="sidebar">
+        <div class="sidebar-brand">🥕 GUGU Admin</div>
+        <nav>
+            <a href="#" class="nav-link active" onclick="Admin.tab('stats',this)">📊 Dashboard</a>
+            <a href="#" class="nav-link" onclick="Admin.tab('listings',this)">📦 Listings</a>
+            <a href="#" class="nav-link" onclick="Admin.tab('users',this)">👥 Users</a>
+        </nav>
+        <div class="sidebar-foot">
+            <a href="/gugu-app/" class="nav-link">📱 Open App</a>
+            <a href="#" class="nav-link" onclick="Admin.logout()">🚪 Logout</a>
+        </div>
+    </aside>
+    <main class="main">
+        <header class="main-head">
+            <h2 id="page-title">Dashboard</h2>
+            <span id="admin-name" class="admin-badge"></span>
+        </header>
+
+        <div id="tab-stats" class="tab active">
+            <div class="stat-grid" id="stat-grid"></div>
+        </div>
+
+        <div id="tab-listings" class="tab">
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>ID</th><th>Title</th><th>Price</th><th>Seller</th><th>Status</th><th>Date</th><th></th></tr></thead>
+                    <tbody id="listings-table"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="tab-users" class="tab">
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>ID</th><th>Name</th><th>Phone</th><th>Location</th><th>Manner</th><th>Listings</th><th>Joined</th></tr></thead>
+                    <tbody id="users-table"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="admin.js"></script>
+</body>
+</html>
