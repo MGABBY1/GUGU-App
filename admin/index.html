@@ -26,12 +26,13 @@
         <div class="sidebar-brand">🥕 GUGU Admin</div>
         <div id="role-badge" class="admin-badge" style="margin:8px 12px"></div>
         <nav>
-            <a href="#" class="nav-link active" onclick="Admin.tab('stats',this)">Dashboard</a>
-            <a href="#" class="nav-link" onclick="Admin.tab('moderation',this)">Moderation Queue</a>
-            <a href="#" class="nav-link" onclick="Admin.tab('listings',this)">Listings</a>
-            <a href="#" class="nav-link" onclick="Admin.tab('users',this)">Users</a>
-            <a href="#" class="nav-link" onclick="Admin.tab('disputes',this)">Dispute Tickets</a>
-            <a href="#" class="nav-link" onclick="Admin.tab('analytics',this)">District Analytics</a>
+            <a href="#" id="nav-stats" class="nav-link active" onclick="Admin.tab('stats',this)">Dashboard</a>
+            <a href="#" id="nav-moderation" class="nav-link" onclick="Admin.tab('moderation',this)">Moderation Queue</a>
+            <a href="#" id="nav-listings" class="nav-link" onclick="Admin.tab('listings',this)">Listings</a>
+            <a href="#" id="nav-users" class="nav-link" onclick="Admin.tab('users',this)">Users</a>
+            <a href="#" id="nav-disputes" class="nav-link" onclick="Admin.tab('disputes',this)">Dispute Tickets</a>
+            <a href="#" id="nav-analytics" class="nav-link" onclick="Admin.tab('analytics',this)">Regional Reporting</a>
+            <a href="#" id="nav-management" class="nav-link" onclick="Admin.tab('management',this)">Team Management</a>
             <a href="#" class="nav-link" id="nav-permissions" onclick="Admin.tab('permissions',this)">Permission Controls</a>
             <a href="#" class="nav-link" id="nav-system" onclick="Admin.tab('system',this)">System Controls</a>
         </nav>
@@ -42,11 +43,35 @@
     </aside>
     <main class="main">
         <header class="main-head">
-            <h2 id="page-title">Dashboard</h2>
+            <div>
+                <h2 id="page-title">Dashboard</h2>
+                <p id="dashboard-context" class="context-line"></p>
+            </div>
             <span id="admin-name" class="admin-badge"></span>
         </header>
 
+        <section id="dashboard-access" class="access-panel" style="display:none">
+            <div>
+                <strong>Dashboard Access</strong>
+                <p>Inspect an allowed role dashboard without changing your account or permissions.</p>
+            </div>
+            <label>
+                Dashboard
+                <select id="view-role" onchange="Admin.changeDashboardView()">
+                    <option value="super_admin">Super Admin · Global</option>
+                    <option value="district_manager">District Manager · Regional</option>
+                    <option value="moderator">Moderator · Local</option>
+                </select>
+            </label>
+            <label id="view-district-wrap" style="display:none">
+                Akarere
+                <select id="view-district" onchange="Admin.changeDashboardView()"></select>
+            </label>
+            <button type="button" class="btn-mini" onclick="Admin.resetDashboardView()">Reset</button>
+        </section>
+
         <div id="tab-stats" class="tab active">
+            <div id="role-focus" class="role-focus"></div>
             <div class="stat-grid" id="stat-grid"></div>
         </div>
 
@@ -97,6 +122,29 @@
                 <div id="chart-orders" class="bar-chart"></div>
                 <h3 style="margin-top:24px">Listings by category</h3>
                 <div id="chart-category" class="bar-chart"></div>
+            </div>
+        </div>
+
+        <div id="tab-management" class="tab">
+            <div class="panel">
+                <h3>District Operations</h3>
+                <p class="panel-sub">Regional workload across listings, reports, disputes, and assigned moderators.</p>
+                <div class="table-wrap" style="margin-top:16px">
+                    <table>
+                        <thead><tr><th>District</th><th>Active Listings</th><th>Pending</th><th>Reports</th><th>Disputes</th><th>Moderators</th></tr></thead>
+                        <tbody id="district-operations-table"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="panel" style="margin-top:20px">
+                <h3>Moderator Performance (last 30 days)</h3>
+                <p class="panel-sub">Operational activity recorded by the Administrative Portal audit log.</p>
+                <div class="table-wrap" style="margin-top:16px">
+                    <table>
+                        <thead><tr><th>Staff</th><th>Role</th><th>District</th><th>Total Actions</th><th>Approvals</th><th>Disputes</th><th>Open Assigned</th></tr></thead>
+                        <tbody id="moderator-performance-table"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 

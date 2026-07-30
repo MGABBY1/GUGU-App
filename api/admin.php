@@ -69,6 +69,9 @@ switch ($action) {
     case 'analytics':
         adminAnalytics();
         break;
+    case 'management':
+        adminManagement();
+        break;
     case 'settings':
         adminSettings();
         break;
@@ -84,17 +87,57 @@ switch ($action) {
 }
 
 /**
- * Adds "AND <column> = district" for scoped roles.
+ * Super Admin may inspect a lower-role dashboard without changing identity.
+ * This context only affects read queries; write permissions always use the
+ * authenticated role from requireAdmin().
+ */
+function adminViewRole(array $admin): string {
+    $actualRole = userRole($admin);
+    if ($actualRole === 'moderator') return 'moderator';
+
+    $requested = $_GET['view_role'] ?? $actualRole;
+    $allowed = $actualRole === 'super_admin'
+        ? ['moderator', 'district_manager', 'super_admin']
+        : ['moderator', 'district_manager'];
+    return in_array($requested, $allowed, true) ? $requested : $actualRole;
+}
+
+function adminViewScope(array $admin): ?string {
+    if (userRole($admin) !== 'super_admin') {
+        return adminDistrictScope($admin);
+    }
+
+    if (adminViewRole($admin) === 'super_admin') return null;
+    $district = trim($_GET['view_district'] ?? '');
+    return $district !== '' ? $district : null;
+}
+
+/**
+ * Adds "AND <column> = district" for role-scoped read queries.
  */
 function scopeClause(array $admin, string $column, array &$params): string {
-    $scope = adminDistrictScope($admin);
+    $scope = adminViewScope($admin);
     if ($scope === null || $scope === '') return '';
     $params[] = $scope;
     return " AND $column = ?";
 }
 
+function getAdminDistricts(): array {
+    $stmt = getDB()->query('
+        SELECT district FROM users WHERE district IS NOT NULL AND district <> ""
+        UNION
+        SELECT district FROM listings WHERE district IS NOT NULL AND district <> ""
+        ORDER BY district
+    ');
+    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
+
 function adminMe(): void {
     $admin = requireAdmin();
+    $canViewAs = in_array($admin['role'], ['district_manager', 'super_admin'], true);
+    $districts = $admin['role'] === 'super_admin'
+        ? getAdminDistricts()
+        : array_values(array_filter([adminDistrictScope($admin)]));
     jsonResponse([
         'success' => true,
         'admin' => [
@@ -104,6 +147,8 @@ function adminMe(): void {
             'role' => $admin['role'],
             'district_scope' => adminDistrictScope($admin),
             'permissions' => rolePermissions($admin['role']),
+            'can_view_as' => $canViewAs,
+            'districts' => $districts,
         ],
     ]);
 }
@@ -111,7 +156,8 @@ function adminMe(): void {
 function adminStats(): void {
     $admin = requireAdmin('view_dashboard');
     $db = getDB();
-    $scope = adminDistrictScope($admin);
+    $scope = adminViewScope($admin);
+    $viewRole = adminViewRole($admin);
 
     $count = function (string $sql, array $params = []) use ($db): int {
         $stmt = $db->prepare($sql);
@@ -144,7 +190,18 @@ function adminStats(): void {
         )
         : 0;
 
-    $stats['open_reports'] = $count('SELECT COUNT(*) FROM reports WHERE status = "open"');
+    $reportParams = [];
+    $reportScope = '';
+    if ($scope) {
+        $reportScope = ' AND l.district = ?';
+        $reportParams[] = $scope;
+    }
+    $stats['open_reports'] = $count(
+        'SELECT COUNT(*) FROM reports r
+         JOIN listings l ON l.id = r.target_id AND r.target_type = "listing"
+         WHERE r.status = "open"' . $reportScope,
+        $reportParams
+    );
 
     $scopedOrderJoin = ' FROM orders o JOIN listings l ON l.id = o.listing_id' . ($scope ? ' WHERE l.district = ?' : '');
     $stats['open_disputes'] = $count(
@@ -170,6 +227,7 @@ function adminStats(): void {
         'success' => true,
         'stats' => $stats,
         'role' => $admin['role'],
+        'view_role' => $viewRole,
         'district_scope' => $scope,
     ]);
 }
@@ -573,7 +631,7 @@ function resolveDispute(): void {
 function adminAnalytics(): void {
     $admin = requireAdmin('view_analytics');
     $db = getDB();
-    $scope = adminDistrictScope($admin);
+    $scope = adminViewScope($admin);
 
     $params = [];
     $clause = $scope ? ' WHERE district = ?' : '';
@@ -630,6 +688,111 @@ function adminAnalytics(): void {
         'by_category' => $byCategory->fetchAll(),
         'revenue' => $totalRevenue,
         'revenue_formatted' => formatPrice($totalRevenue),
+    ]);
+}
+
+/**
+ * Regional management: district workload plus moderator performance.
+ */
+function adminManagement(): void {
+    $admin = requireAdmin('view_regional_report');
+    $db = getDB();
+    $scope = adminViewScope($admin);
+
+    $managedExpression = tableHasColumn('users', 'managed_district')
+        ? 'COALESCE(NULLIF(u.managed_district, ""), u.district)'
+        : 'u.district';
+
+    $staffParams = [];
+    $staffScope = '';
+    if ($scope) {
+        $staffScope = " AND $managedExpression = ?";
+        $staffParams[] = $scope;
+    }
+
+    $stmt = $db->prepare("
+        SELECT u.id, u.full_name, u.role, u.district,
+               $managedExpression as managed_district,
+               COALESCE(actions.actions_30d, 0) as actions_30d,
+               COALESCE(actions.approvals_30d, 0) as approvals_30d,
+               COALESCE(actions.disputes_30d, 0) as disputes_30d,
+               COALESCE(open_work.open_items, 0) as open_items
+        FROM users u
+        LEFT JOIN (
+            SELECT actor_id,
+                   COUNT(*) as actions_30d,
+                   SUM(action IN ('listing_approved', 'listing_rejected')) as approvals_30d,
+                   SUM(action LIKE 'dispute_%') as disputes_30d
+            FROM admin_audit_logs
+            WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            GROUP BY actor_id
+        ) actions ON actions.actor_id = u.id
+        LEFT JOIN (
+            SELECT assigned_admin_id, COUNT(*) as open_items
+            FROM disputes
+            WHERE status IN ('open', 'in_review') AND assigned_admin_id IS NOT NULL
+            GROUP BY assigned_admin_id
+        ) open_work ON open_work.assigned_admin_id = u.id
+        WHERE u.role IN ('moderator', 'district_manager')$staffScope
+        ORDER BY FIELD(u.role, 'district_manager', 'moderator'), actions_30d DESC, u.full_name
+    ");
+    $stmt->execute($staffParams);
+    $staff = $stmt->fetchAll();
+
+    $districtParams = [];
+    $districtWhere = '';
+    if ($scope) {
+        $districtWhere = ' WHERE d.district = ?';
+        $districtParams[] = $scope;
+    }
+
+    $stmt = $db->prepare("
+        SELECT d.district,
+               COALESCE(l.active_listings, 0) as active_listings,
+               COALESCE(l.pending_listings, 0) as pending_listings,
+               COALESCE(r.open_reports, 0) as open_reports,
+               COALESCE(x.open_disputes, 0) as open_disputes,
+               COALESCE(m.moderators, 0) as moderators
+        FROM (
+            SELECT district FROM users WHERE district IS NOT NULL AND district <> ''
+            UNION
+            SELECT district FROM listings WHERE district IS NOT NULL AND district <> ''
+        ) d
+        LEFT JOIN (
+            SELECT district,
+                   SUM(status = 'active') as active_listings,
+                   SUM(approval_status = 'pending') as pending_listings
+            FROM listings GROUP BY district
+        ) l ON l.district = d.district
+        LEFT JOIN (
+            SELECT li.district, COUNT(*) as open_reports
+            FROM reports rp
+            JOIN listings li ON li.id = rp.target_id AND rp.target_type = 'listing'
+            WHERE rp.status = 'open' GROUP BY li.district
+        ) r ON r.district = d.district
+        LEFT JOIN (
+            SELECT li.district, COUNT(*) as open_disputes
+            FROM disputes dp
+            JOIN orders o ON o.id = dp.order_id
+            JOIN listings li ON li.id = o.listing_id
+            WHERE dp.status IN ('open', 'in_review') GROUP BY li.district
+        ) x ON x.district = d.district
+        LEFT JOIN (
+            SELECT $managedExpression as district, COUNT(*) as moderators
+            FROM users u WHERE u.role = 'moderator'
+            GROUP BY $managedExpression
+        ) m ON m.district = d.district
+        $districtWhere
+        ORDER BY d.district
+    ");
+    $stmt->execute($districtParams);
+
+    jsonResponse([
+        'success' => true,
+        'district_scope' => $scope,
+        'view_role' => adminViewRole($admin),
+        'staff' => $staff,
+        'districts' => $stmt->fetchAll(),
     ]);
 }
 

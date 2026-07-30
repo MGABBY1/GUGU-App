@@ -39,10 +39,19 @@ const Admin = {
     token: localStorage.getItem('gugu_token'),
     user: JSON.parse(localStorage.getItem('gugu_user') || 'null'),
     profile: null,
+    viewRole: null,
+    viewDistrict: '',
+    currentTab: 'stats',
 
     async api(endpoint, opts = {}) {
         const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}` };
-        const res = await fetch(`../api/${endpoint}`, { ...opts, headers: { ...headers, ...opts.headers } });
+        let url = `../api/${endpoint}`;
+        if (endpoint.startsWith('admin.php') && this.profile?.can_view_as && this.viewRole) {
+            const separator = url.includes('?') ? '&' : '?';
+            url += `${separator}view_role=${encodeURIComponent(this.viewRole)}`;
+            if (this.viewDistrict) url += `&view_district=${encodeURIComponent(this.viewDistrict)}`;
+        }
+        const res = await fetch(url, { ...opts, headers: { ...headers, ...opts.headers } });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Error');
         return data;
@@ -90,6 +99,8 @@ const Admin = {
         try {
             const { admin } = await this.api('admin.php?action=me');
             this.profile = admin;
+            this.viewRole = admin.role;
+            this.viewDistrict = admin.district_scope || '';
         } catch (err) {
             this.showLogin('Admin access denied: ' + err.message);
             return;
@@ -102,22 +113,76 @@ const Admin = {
         const scope = this.profile.district_scope ? ` · ${this.profile.district_scope}` : ' · All districts';
         document.getElementById('role-badge').textContent = (ROLE_LABELS[this.profile.role] || this.profile.role) + scope;
 
-        this.applyPermissions();
+        this.setupDashboardAccess();
+        this.applyRoleView();
         this.loadStats();
     },
 
-    applyPermissions() {
-        const gated = {
-            'nav-permissions': 'view_audit_log',
-            'nav-system': 'system_controls'
+    setupDashboardAccess() {
+        const panel = document.getElementById('dashboard-access');
+        panel.style.display = this.profile.can_view_as ? 'flex' : 'none';
+        if (!this.profile.can_view_as) return;
+
+        document.getElementById('view-role').value = this.viewRole;
+        document.querySelector('#view-role option[value="super_admin"]').style.display =
+            this.profile.role === 'super_admin' ? 'block' : 'none';
+        const districtSelect = document.getElementById('view-district');
+        districtSelect.innerHTML = '<option value="">Select district</option>' +
+            (this.profile.districts || []).map(d =>
+                `<option value="${esc(d)}" ${d === this.viewDistrict ? 'selected' : ''}>${esc(d)}</option>`
+            ).join('');
+        this.updateDistrictSelector();
+    },
+
+    updateDistrictSelector() {
+        const wrap = document.getElementById('view-district-wrap');
+        if (wrap) wrap.style.display = this.viewRole === 'super_admin' ? 'none' : 'flex';
+    },
+
+    changeDashboardView() {
+        this.viewRole = document.getElementById('view-role').value;
+        const districtSelect = document.getElementById('view-district');
+        if (this.viewRole === 'super_admin') {
+            this.viewDistrict = '';
+        } else {
+            this.viewDistrict = districtSelect.value || this.profile.districts?.[0] || '';
+            districtSelect.value = this.viewDistrict;
+        }
+        this.updateDistrictSelector();
+        this.applyRoleView();
+        this.tab('stats', document.getElementById('nav-stats'));
+    },
+
+    resetDashboardView() {
+        this.viewRole = this.profile.role;
+        this.viewDistrict = this.profile.district_scope || '';
+        document.getElementById('view-role').value = this.viewRole;
+        document.getElementById('view-district').value = this.viewDistrict;
+        this.updateDistrictSelector();
+        this.applyRoleView();
+        this.tab('stats', document.getElementById('nav-stats'));
+    },
+
+    applyRoleView() {
+        const visibleByRole = {
+            moderator: ['stats', 'moderation', 'listings', 'disputes'],
+            district_manager: ['stats', 'moderation', 'listings', 'users', 'disputes', 'analytics', 'management'],
+            super_admin: ['stats', 'moderation', 'listings', 'users', 'disputes', 'analytics', 'management', 'permissions', 'system']
         };
-        Object.entries(gated).forEach(([id, permission]) => {
-            const el = document.getElementById(id);
-            if (el) el.style.display = this.can(permission) ? 'block' : 'none';
+        const visible = visibleByRole[this.viewRole || this.profile.role] || visibleByRole.moderator;
+        ['stats', 'moderation', 'listings', 'users', 'disputes', 'analytics', 'management', 'permissions', 'system'].forEach(name => {
+            const el = document.getElementById(`nav-${name}`);
+            if (el) el.style.display = visible.includes(name) ? 'block' : 'none';
         });
+
+        const scope = this.viewDistrict || this.profile.district_scope || 'All districts';
+        const role = ROLE_LABELS[this.viewRole || this.profile.role] || this.viewRole;
+        document.getElementById('dashboard-context').textContent = `${role} dashboard · ${scope}`;
+        document.getElementById('role-badge').textContent = `${role} · ${scope}`;
     },
 
     tab(name, el) {
+        this.currentTab = name;
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
         document.getElementById(`tab-${name}`)?.classList.add('active');
@@ -129,7 +194,8 @@ const Admin = {
             listings: 'All Listings',
             users: 'All Users',
             disputes: 'Dispute Tickets',
-            analytics: 'District Analytics',
+            analytics: 'Regional Reporting',
+            management: 'Team Management',
             permissions: 'Permission Controls',
             system: 'System Controls'
         };
@@ -142,6 +208,7 @@ const Admin = {
             users: () => this.loadUsers(),
             disputes: () => this.loadDisputes(),
             analytics: () => this.loadAnalytics(),
+            management: () => this.loadManagement(),
             permissions: () => this.loadPermissions(),
             system: () => this.loadSettings()
         };
@@ -150,19 +217,54 @@ const Admin = {
 
     async loadStats() {
         try {
-            const { stats } = await this.api('admin.php?action=stats');
-            document.getElementById('stat-grid').innerHTML = [
-                ['Users', stats.users, ''],
-                ['Total Listings', stats.listings, 'orange'],
-                ['Active', stats.active_listings, ''],
-                ['Sold', stats.sold_listings, ''],
-                ['Pending approval', stats.pending_listings, 'warn'],
-                ['Open reports', stats.open_reports, 'warn'],
-                ['Open disputes', stats.open_disputes, 'danger'],
-                ['Orders', stats.orders, ''],
-                ['In escrow', stats.escrow_held_formatted, 'orange'],
-                ['Messages', stats.messages, ''],
-            ].map(([label, val, cls]) => `
+            const { stats, view_role, district_scope } = await this.api('admin.php?action=stats');
+            this.viewRole = view_role;
+            const focus = {
+                moderator: {
+                    title: 'Daily Local Operations',
+                    text: 'Review local listings and resolve buyer/seller issues in your assigned district.',
+                    cards: [
+                        ['Pending approval', stats.pending_listings, 'warn'],
+                        ['Open reports', stats.open_reports, 'warn'],
+                        ['Open disputes', stats.open_disputes, 'danger'],
+                        ['Active listings', stats.active_listings, '']
+                    ]
+                },
+                district_manager: {
+                    title: 'Regional Management',
+                    text: 'Monitor district workload, team performance, listings, and disputes.',
+                    cards: [
+                        ['District users', stats.users, ''],
+                        ['Active listings', stats.active_listings, 'orange'],
+                        ['Pending approval', stats.pending_listings, 'warn'],
+                        ['Open reports', stats.open_reports, 'warn'],
+                        ['Open disputes', stats.open_disputes, 'danger'],
+                        ['Orders', stats.orders, '']
+                    ]
+                },
+                super_admin: {
+                    title: 'Global Platform Overview',
+                    text: 'Platform health, global operations, financial exposure, permissions, and system controls.',
+                    cards: [
+                        ['Users', stats.users, ''],
+                        ['Total listings', stats.listings, 'orange'],
+                        ['Active', stats.active_listings, ''],
+                        ['Sold', stats.sold_listings, ''],
+                        ['Pending approval', stats.pending_listings, 'warn'],
+                        ['Open reports', stats.open_reports, 'warn'],
+                        ['Open disputes', stats.open_disputes, 'danger'],
+                        ['Orders', stats.orders, ''],
+                        ['In escrow', stats.escrow_held_formatted, 'orange'],
+                        ['Messages', stats.messages, '']
+                    ]
+                }
+            }[view_role];
+
+            document.getElementById('dashboard-context').textContent =
+                `${ROLE_LABELS[view_role]} dashboard · ${district_scope || 'All districts'}`;
+            document.getElementById('role-focus').innerHTML =
+                `<strong>${focus.title}</strong><span>${focus.text}</span>`;
+            document.getElementById('stat-grid').innerHTML = focus.cards.map(([label, val, cls]) => `
                 <div class="stat-card ${cls}">
                     <div class="label">${label}</div>
                     <div class="value">${val ?? 0}</div>
@@ -267,6 +369,7 @@ const Admin = {
         tbody.innerHTML = '<tr><td colspan="8">Loading...</td></tr>';
         try {
             const { users, can_manage_roles, can_ban, roles } = await this.api('admin.php?action=users');
+            const roleManagement = can_manage_roles && this.viewRole === 'super_admin';
             tbody.innerHTML = users.length ? users.map(u => `
                 <tr>
                     <td>#${u.id}</td>
@@ -274,7 +377,7 @@ const Admin = {
                     <td>${u.phone}</td>
                     <td>${esc(u.district || '')}, ${esc(u.province || '')}</td>
                     <td>
-                        ${can_manage_roles ? `
+                        ${roleManagement ? `
                             <select class="role-select" onchange="Admin.setRole(${u.id}, this.value)">
                                 ${roles.map(r => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${ROLE_LABELS[r] || r}</option>`).join('')}
                             </select>` : `<span class="pill-role">${ROLE_LABELS[u.role] || u.role}</span>`}
@@ -378,6 +481,42 @@ const Admin = {
             bars('chart-category', data.by_category);
         } catch (err) {
             document.getElementById('analytics-summary').innerHTML = `<div class="stat-card"><div class="label">${esc(err.message)}</div></div>`;
+        }
+    },
+
+    async loadManagement() {
+        const districtBody = document.getElementById('district-operations-table');
+        const staffBody = document.getElementById('moderator-performance-table');
+        districtBody.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+        staffBody.innerHTML = '<tr><td colspan="7">Loading...</td></tr>';
+
+        try {
+            const { districts, staff } = await this.api('admin.php?action=management');
+            districtBody.innerHTML = districts.length ? districts.map(d => `
+                <tr>
+                    <td><strong>${esc(d.district)}</strong></td>
+                    <td>${d.active_listings}</td>
+                    <td>${d.pending_listings}</td>
+                    <td>${d.open_reports}</td>
+                    <td>${d.open_disputes}</td>
+                    <td>${d.moderators}</td>
+                </tr>
+            `).join('') : '<tr><td colspan="6">No district activity yet</td></tr>';
+
+            staffBody.innerHTML = staff.length ? staff.map(s => `
+                <tr>
+                    <td><strong>${esc(s.full_name)}</strong></td>
+                    <td><span class="pill-role">${ROLE_LABELS[s.role] || esc(s.role)}</span></td>
+                    <td>${esc(s.managed_district || s.district || '—')}</td>
+                    <td>${s.actions_30d}</td>
+                    <td>${s.approvals_30d}</td>
+                    <td>${s.disputes_30d}</td>
+                    <td>${s.open_items}</td>
+                </tr>
+            `).join('') : '<tr><td colspan="7">No Moderator or District Manager assigned yet</td></tr>';
+        } catch (err) {
+            districtBody.innerHTML = `<tr><td colspan="6">${esc(err.message)}</td></tr>`;
+            staffBody.innerHTML = `<tr><td colspan="7">${esc(err.message)}</td></tr>`;
         }
     },
 

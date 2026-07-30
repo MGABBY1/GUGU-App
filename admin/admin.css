@@ -185,3 +185,66 @@ td { padding: 12px 16px; border-top: 1px solid #F2F3F6; }
 }
 .status.in_review { background: #FFF8E6; color: #B45309; }
 .status.closed { background: #F2F3F6; color: #868B94; }
+
+/* Role-scoped dashboard access */
+.context-line {
+    color: #868B94;
+    font-size: 0.8125rem;
+    margin-top: 4px;
+}
+
+.access-panel {
+    background: #212124;
+    color: white;
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    align-items: end;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.access-panel > div { flex: 1; min-width: 240px; }
+.access-panel strong { color: #FF8A3D; font-size: 0.9375rem; }
+.access-panel p { color: #ADB1BA; font-size: 0.75rem; margin-top: 3px; }
+.access-panel label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    color: #ADB1BA;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.access-panel select {
+    min-width: 180px;
+    padding: 8px 10px;
+    border: 1px solid #4B4B4F;
+    border-radius: 7px;
+    background: #2F3033;
+    color: white;
+}
+.access-panel .btn-mini {
+    height: 34px;
+    background: #FF6F0F;
+    color: white;
+}
+
+.role-focus {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    background: white;
+    border-left: 4px solid #FF6F0F;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.role-focus strong { font-size: 0.9375rem; }
+.role-focus span { color: #868B94; font-size: 0.8125rem; }
+
+@media (max-width: 768px) {
+    .access-panel { align-items: stretch; }
+    .access-panel label, .access-panel select { width: 100%; }
+    .role-focus { align-items: flex-start; flex-direction: column; gap: 4px; }
+}
