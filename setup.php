@@ -43,6 +43,35 @@ if (DB_NAME !== $allowedDb) {
 
         $messages[] = 'All GUGU App tables are ready.';
 
+        // Portal migrations: add columns only when missing so existing data is untouched
+        $addColumn = function (string $table, string $column, string $definition) use ($pdo, $allowedDb): bool {
+            $check = $pdo->prepare('
+                SELECT COUNT(*) FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+            ');
+            $check->execute([$allowedDb, $table, $column]);
+            if ((int) $check->fetchColumn() > 0) return false;
+            $pdo->exec("ALTER TABLE `{$table}` ADD COLUMN `{$column}` {$definition}");
+            return true;
+        };
+
+        $added = 0;
+        $added += (int) $addColumn('users', 'role', "ENUM('member','moderator','district_manager','super_admin') NOT NULL DEFAULT 'member'");
+        $added += (int) $addColumn('users', 'is_banned', 'TINYINT(1) NOT NULL DEFAULT 0');
+        $added += (int) $addColumn('users', 'managed_district', 'VARCHAR(50) DEFAULT NULL');
+        $added += (int) $addColumn('users', 'language', "VARCHAR(5) NOT NULL DEFAULT 'rw'");
+        $added += (int) $addColumn('listings', 'approval_status', "ENUM('pending','approved','rejected') NOT NULL DEFAULT 'approved'");
+        $added += (int) $addColumn('listings', 'rejection_reason', 'VARCHAR(255) DEFAULT NULL');
+        $added += (int) $addColumn('listings', 'quantity', 'INT NOT NULL DEFAULT 1');
+
+        $messages[] = $added > 0
+            ? "Member/Administrative portal columns added ({$added}). Existing rows kept their data."
+            : 'Portal columns already present — nothing changed.';
+
+        // The original backend phone keeps super admin access
+        $pdo->prepare("UPDATE users SET role = 'super_admin' WHERE phone = ? AND role = 'member'")
+            ->execute(['+250789999999']);
+
         // Copy data from old gugu_app database if GUGUapDB is empty
         $oldDb = 'gugu_app';
         $oldExists = (bool) $pdo->query("SHOW DATABASES LIKE '{$oldDb}'")->fetch();

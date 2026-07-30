@@ -160,3 +160,138 @@ CREATE TABLE IF NOT EXISTS sessions (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_expires (expires_at)
 ) ENGINE=InnoDB;
+
+-- Orders (member purchases). Matches the shared GUGUapDB portal schema.
+CREATE TABLE IF NOT EXISTS orders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    listing_id INT NOT NULL,
+    buyer_id INT NOT NULL,
+    seller_id INT NOT NULL,
+    amount INT NOT NULL DEFAULT 0,
+    status ENUM('pending', 'agreed', 'paid', 'completed', 'disputed', 'cancelled', 'refunded') DEFAULT 'pending',
+    track_code VARCHAR(32) NOT NULL,
+    notes VARCHAR(255) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_track (track_code),
+    FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE CASCADE,
+    FOREIGN KEY (buyer_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_buyer (buyer_id),
+    INDEX idx_seller (seller_id),
+    INDEX idx_status (status)
+) ENGINE=InnoDB;
+
+-- Order timeline (Track Item)
+CREATE TABLE IF NOT EXISTS order_events (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    actor_id INT DEFAULT NULL,
+    event_type VARCHAR(50) NOT NULL,
+    note VARCHAR(255) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    INDEX idx_order (order_id)
+) ENGINE=InnoDB;
+
+-- Escrow wallet ledger (MTN / Airtel money movements)
+CREATE TABLE IF NOT EXISTS escrow_ledger (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT DEFAULT NULL,
+    user_id INT NOT NULL,
+    direction ENUM('credit', 'debit', 'hold', 'release', 'refund') NOT NULL,
+    amount INT NOT NULL,
+    provider ENUM('sandbox', 'mtn', 'airtel') DEFAULT 'sandbox',
+    provider_ref VARCHAR(100) DEFAULT NULL,
+    status ENUM('pending', 'success', 'failed') DEFAULT 'pending',
+    meta TEXT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user (user_id),
+    INDEX idx_order (order_id)
+) ENGINE=InnoDB;
+
+-- Member wallet balances
+CREATE TABLE IF NOT EXISTS wallets (
+    user_id INT PRIMARY KEY,
+    available_balance INT NOT NULL DEFAULT 0,
+    held_balance INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Dispute tickets (admin portal)
+CREATE TABLE IF NOT EXISTS disputes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    opener_id INT NOT NULL,
+    reason VARCHAR(255) NOT NULL,
+    details TEXT DEFAULT NULL,
+    status ENUM('open', 'in_review', 'resolved_buyer', 'resolved_seller', 'closed') DEFAULT 'open',
+    assigned_admin_id INT DEFAULT NULL,
+    resolution_note VARCHAR(255) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (opener_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_status (status)
+) ENGINE=InnoDB;
+
+-- Reports feeding the moderation queue
+CREATE TABLE IF NOT EXISTS reports (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    reporter_id INT DEFAULT NULL,
+    target_type ENUM('listing', 'user', 'chat') NOT NULL,
+    target_id INT NOT NULL,
+    reason VARCHAR(100) NOT NULL,
+    details TEXT DEFAULT NULL,
+    status ENUM('open', 'reviewing', 'resolved', 'dismissed') NOT NULL DEFAULT 'open',
+    handled_by INT DEFAULT NULL,
+    resolution_note TEXT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_reports_status (status),
+    INDEX idx_reports_target (target_type, target_id)
+) ENGINE=InnoDB;
+
+-- Member notifications
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    title VARCHAR(150) NOT NULL,
+    body VARCHAR(255) DEFAULT NULL,
+    link VARCHAR(255) DEFAULT NULL,
+    is_read TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_read (user_id, is_read)
+) ENGINE=InnoDB;
+
+-- Admin audit trail
+CREATE TABLE IF NOT EXISTS admin_audit_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    actor_id INT NOT NULL,
+    action VARCHAR(80) NOT NULL,
+    target_type VARCHAR(40) DEFAULT NULL,
+    target_id INT DEFAULT NULL,
+    meta_json TEXT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_audit_actor (actor_id),
+    INDEX idx_audit_created (created_at)
+) ENGINE=InnoDB;
+
+-- System controls (super admin)
+CREATE TABLE IF NOT EXISTS system_settings (
+    setting_key VARCHAR(60) PRIMARY KEY,
+    setting_value VARCHAR(255) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES
+('require_listing_approval', '0'),
+('escrow_enabled', '1'),
+('momo_sandbox', '1'),
+('platform_fee_percent', '0'),
+('maintenance_mode', '0');

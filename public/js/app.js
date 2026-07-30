@@ -58,14 +58,18 @@ const App = {
     updateHeader() {
         const guest = document.getElementById('hdr-guest');
         const userEl = document.getElementById('hdr-user');
+        const memberOnly = ['hdr-purchases', 'hdr-bell'];
         if (this.user) {
             guest.style.display = 'none';
             userEl.style.display = 'flex';
             document.getElementById('hdr-avatar').textContent = this.user.full_name.charAt(0).toUpperCase();
             document.getElementById('hdr-name').textContent = this.user.full_name.split(' ')[0];
+            memberOnly.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'inline-flex'; });
+            this.refreshBell();
         } else {
             guest.style.display = 'flex';
             userEl.style.display = 'none';
+            memberOnly.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
         }
     },
 
@@ -94,6 +98,10 @@ const App = {
             'my-listings': () => this.loadMyListings('active'),
             'user-profile': () => this.loadUserProfile(data),
             register: () => this.initRegisterForm(),
+            purchases: () => this.loadPurchases(),
+            inventory: () => this.loadInventory(),
+            sales: () => this.loadSalesAnalytics(),
+            notifications: () => this.loadNotifications(),
         };
         loaders[page]?.();
         window.scrollTo(0, 0);
@@ -102,7 +110,8 @@ const App = {
     goBack() {
         const map = {
             detail: 'home', sell: 'home', register: 'auth',
-            favorites: 'home', 'my-listings': 'profile', 'user-profile': 'detail'
+            favorites: 'home', 'my-listings': 'profile', 'user-profile': 'detail',
+            purchases: 'profile', inventory: 'profile', sales: 'profile', notifications: 'home'
         };
         this.showPage(map[this.currentPage] || 'home');
     },
@@ -259,8 +268,10 @@ const App = {
                         <button class="btn btn-outline btn-block" onclick="App.updateListingStatus(${l.id},'sold')">✅ Byagurishijwe</button>
                         <button class="btn btn-carrot btn-block" onclick="App.updateListingStatus(${l.id},'reserved')">🔒 Byafashwe</button>
                     ` : `
-                        <button class="btn btn-carrot btn-block" onclick="App.startChat(${l.id})">💬 Vugana n'umugurisha</button>
+                        ${l.is_free == 1 ? '' : `<button class="btn btn-carrot btn-block" onclick="App.buyNow(${l.id})">🛒 Gura ubu (escrow + MoMo)</button>`}
+                        <button class="btn btn-outline btn-block" onclick="App.startChat(${l.id})">💬 Vugana n'umugurisha</button>
                         <button class="btn btn-outline btn-block" onclick="App.toggleFavorite(${l.id})">${l.is_favorited ? '❤️ Byakunzwe' : '🤍 Ongeramo mu byakunzwe'}</button>
+                        <button class="link-btn" onclick="App.reportListing(${l.id})">🚩 Tanga raporo kuri iki gicuruzwa</button>
                     `}
                 </div>
             `;
@@ -448,6 +459,12 @@ const App = {
             document.getElementById('stat-listings').textContent = u.active_listings;
             document.getElementById('stat-sold').textContent = u.sold_listings;
             document.getElementById('stat-favorites').textContent = u.favorites_count;
+
+            const adminLink = document.getElementById('admin-portal-link');
+            if (adminLink) {
+                const staffRoles = ['moderator', 'district_manager', 'super_admin'];
+                adminLink.style.display = staffRoles.includes(u.role) ? 'block' : 'none';
+            }
         } catch {}
     },
 
@@ -482,6 +499,379 @@ const App = {
             grid.id = 'user-listings-grid';
             el.appendChild(grid);
             this.renderGrid(data.listings, grid);
+        } catch {}
+    },
+
+    /* ─── MEMBER PORTAL: MY PURCHASES ─── */
+    loadPurchases() {
+        if (!this.token) { this.showPage('auth'); return; }
+        this.purchasesTab(this.purchasesView || 'history');
+    },
+
+    purchasesTab(name, el) {
+        this.purchasesView = name;
+        ['history', 'track', 'wallet'].forEach(v => {
+            const pane = document.getElementById(`purchases-${v}`);
+            if (pane) pane.style.display = v === name ? 'block' : 'none';
+        });
+        if (el) {
+            el.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+            el.classList.add('on');
+        }
+        if (name === 'history') this.loadOrderHistory();
+        if (name === 'track') this.loadTrackPicker();
+        if (name === 'wallet') this.loadWallet();
+    },
+
+    async loadOrderHistory() {
+        const wrap = document.getElementById('orders-list');
+        wrap.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+        try {
+            const { orders } = await this.api('orders.php?action=purchases');
+            if (!orders.length) {
+                wrap.innerHTML = `<div class="empty-state"><div class="ico">🛍️</div><h3>Nta byo waguze</h3>
+                    <p>Shakisha igicuruzwa maze ukande "Gura ubu"</p>
+                    <button class="btn btn-carrot" onclick="App.showPage('home')">Reba ibicuruzwa</button></div>`;
+                return;
+            }
+            wrap.innerHTML = orders.map(o => this.orderCardHTML(o)).join('');
+        } catch (e) { wrap.innerHTML = `<div class="empty-state"><p>${this.esc(e.message)}</p></div>`; }
+    },
+
+    orderCardHTML(o) {
+        const escrowLabel = {
+            unpaid: '⏳ Ntibyishyuwe', held: '🔐 Muri escrow',
+            released: '✅ Yasohotse', refunded: '↩️ Yasubijwe'
+        }[o.escrow_status] || o.escrow_status;
+
+        const actions = [];
+        const closed = ['completed', 'cancelled', 'refunded'];
+        if (o.escrow_status === 'unpaid' && !closed.includes(o.status)) {
+            actions.push(`<button class="btn btn-carrot btn-sm" onclick="App.openCheckout(${o.id})">Ishyura na MoMo</button>`);
+        }
+        if (o.escrow_status === 'held' && o.status !== 'completed') {
+            actions.push(`<button class="btn btn-carrot btn-sm" onclick="App.confirmOrder(${o.id})">Nakiriye igicuruzwa</button>`);
+        }
+        if (!closed.includes(o.status)) {
+            actions.push(`<button class="btn btn-outline btn-sm" onclick="App.meetupOrder(${o.id})">Twateganije guhura</button>`);
+            actions.push(`<button class="btn btn-outline btn-sm" onclick="App.disputeOrder(${o.id})">Tanga ikibazo</button>`);
+            actions.push(`<button class="btn btn-outline btn-sm" onclick="App.cancelOrder(${o.id})">Hagarika</button>`);
+        }
+
+        return `
+            <div class="order-card">
+                <div class="order-thumb">${o.primary_image ? `<img src="${o.primary_image}" alt="">` : '📦'}</div>
+                <div class="order-body">
+                    <div class="order-title">${this.esc(o.listing_title)}</div>
+                    <div class="order-meta">#${o.id} · ${this.esc(o.seller_name)} · ${o.time_ago}</div>
+                    <div class="order-tags">
+                        <span class="pill status-${o.status}">${o.status_label}</span>
+                        <span class="pill">${escrowLabel}</span>
+                    </div>
+                </div>
+                <div class="order-side">
+                    <div class="order-amount">${o.amount_formatted}</div>
+                    <div class="order-actions">${actions.join('')}</div>
+                    <button class="link-btn" onclick="App.openTrack(${o.id})">📍 Kurikirana</button>
+                </div>
+            </div>`;
+    },
+
+    async loadTrackPicker() {
+        const picker = document.getElementById('track-picker');
+        picker.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+        try {
+            const { orders } = await this.api('orders.php?action=purchases');
+            picker.innerHTML = orders.length
+                ? orders.map(o => `
+                    <div class="track-item" onclick="App.openTrack(${o.id})">
+                        <div class="track-item-title">${this.esc(o.listing_title)}</div>
+                        <div class="track-item-meta">#${o.id} · ${o.status_label}</div>
+                    </div>`).join('')
+                : '<div style="padding:20px;color:#868B94">Nta tumizwa</div>';
+        } catch { picker.innerHTML = '<div style="padding:20px">Ikosa</div>'; }
+    },
+
+    async openTrack(orderId) {
+        this.purchasesView = 'track';
+        this.showPage('purchases');
+        this.purchasesTab('track');
+        document.querySelectorAll('#page-purchases .tabs .tab').forEach((t, i) => t.classList.toggle('on', i === 1));
+
+        const box = document.getElementById('track-detail');
+        box.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+        try {
+            const { order, events } = await this.api(`orders.php?action=track&id=${orderId}`);
+            box.innerHTML = `
+                <div class="track-head">
+                    <h3>${this.esc(order.listing_title)}</h3>
+                    <div class="order-meta">Itumizwa #${order.id} · ${order.amount_formatted}</div>
+                    <div class="order-tags">
+                        <span class="pill status-${order.status}">${order.status_label}</span>
+                        ${order.track_code ? `<span class="pill">${this.esc(order.track_code)}</span>` : ''}
+                    </div>
+                </div>
+                <div class="timeline">
+                    ${events.map(ev => `
+                        <div class="timeline-row">
+                            <div class="dot"></div>
+                            <div>
+                                <div class="tl-status">${this.esc(ev.status_label)}</div>
+                                <div class="tl-note">${this.esc(ev.note || '')}</div>
+                                <div class="tl-time">${ev.time_ago}${ev.actor_name ? ' · ' + this.esc(ev.actor_name) : ''}</div>
+                            </div>
+                        </div>`).join('')}
+                </div>`;
+        } catch (e) { box.innerHTML = `<div class="empty-state"><p>${this.esc(e.message)}</p></div>`; }
+    },
+
+    async loadWallet() {
+        const cards = document.getElementById('wallet-cards');
+        const tx = document.getElementById('wallet-tx');
+        cards.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+        try {
+            const { wallet, transactions } = await this.api('orders.php?action=wallet');
+            cards.innerHTML = [
+                ['🔐 Ari muri escrow', wallet.held_formatted, 'orange'],
+                ['✅ Nakoresheje', wallet.spent_formatted, ''],
+                ['💰 Nakuye mu kugurisha', wallet.earned_formatted, ''],
+                ['↩️ Nasubijwe', wallet.refunded_formatted, ''],
+            ].map(([label, val, cls]) => `
+                <div class="metric-card ${cls}">
+                    <div class="metric-label">${label}</div>
+                    <div class="metric-value">${val}</div>
+                </div>`).join('');
+
+            tx.innerHTML = transactions.length ? transactions.map(t => `
+                <tr>
+                    <td>${t.time_ago}</td>
+                    <td><span class="pill">${t.type}</span></td>
+                    <td>${this.esc(t.listing_title || '—')}</td>
+                    <td class="${t.flow === 'in' ? 'amt-in' : 'amt-out'}">${t.flow === 'in' ? '+' : '−'} ${t.amount_formatted}</td>
+                </tr>`).join('') : '<tr><td colspan="4">Nta bikorwa bya escrow</td></tr>';
+        } catch (e) {
+            cards.innerHTML = `<div class="empty-state"><p>${this.esc(e.message)}</p></div>`;
+        }
+    },
+
+    /* ─── MEMBER PORTAL: BUY & MOBILE MONEY ─── */
+    async buyNow(listingId) {
+        if (!this.token) { this.showPage('auth'); return; }
+        try {
+            const data = await this.api('orders.php?action=create', {
+                method: 'POST', body: JSON.stringify({ listing_id: listingId })
+            });
+            this.openCheckout(data.order_id);
+        } catch (e) { this.toast(e.message, 'error'); }
+    },
+
+    openCheckout(orderId) {
+        this.checkoutOrder = orderId;
+        document.getElementById('checkout-body').innerHTML = `
+            <p class="modal-sub">Amafaranga abikwa muri <strong>escrow</strong> kugeza wemeje ko wakiriye igicuruzwa.</p>
+            <div class="field">
+                <label>Uburyo bwo kwishyura</label>
+                <select id="checkout-method">
+                    <option value="mtn_momo">MTN Mobile Money</option>
+                    <option value="airtel_money">Airtel Money</option>
+                    <option value="cash">Amafaranga mu ntoki (meetup)</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>Nomero ya telefoni</label>
+                <input type="tel" id="checkout-phone" value="${this.user?.phone || ''}" placeholder="0789999999">
+            </div>
+            <button class="btn btn-carrot btn-block" onclick="App.submitCheckout()">Emeza kwishyura</button>`;
+        document.getElementById('checkout-modal').style.display = 'flex';
+    },
+
+    closeCheckout() {
+        document.getElementById('checkout-modal').style.display = 'none';
+    },
+
+    async submitCheckout() {
+        try {
+            const data = await this.api('orders.php?action=pay', {
+                method: 'POST',
+                body: JSON.stringify({
+                    order_id: this.checkoutOrder,
+                    payment_method: document.getElementById('checkout-method').value,
+                    phone: document.getElementById('checkout-phone').value
+                })
+            });
+            this.closeCheckout();
+            this.toast(`${data.message} (${data.payment_ref})`, 'success');
+            this.showPage('purchases');
+        } catch (e) { this.toast(e.message, 'error'); }
+    },
+
+    async orderAction(action, orderId, body = {}) {
+        try {
+            const data = await this.api(`orders.php?action=${action}`, {
+                method: 'POST', body: JSON.stringify({ order_id: orderId, ...body })
+            });
+            this.toast(data.message, 'success');
+            this.loadOrderHistory();
+            this.refreshBell();
+        } catch (e) { this.toast(e.message, 'error'); }
+    },
+
+    confirmOrder(id) {
+        if (!confirm('Wemeza ko wakiriye igicuruzwa? Amafaranga azajya ku mugurisha.')) return;
+        this.orderAction('confirm', id);
+    },
+
+    cancelOrder(id) {
+        const reason = prompt('Impamvu yo guhagarika:');
+        if (reason === null) return;
+        this.orderAction('cancel', id, { reason });
+    },
+
+    meetupOrder(id) {
+        const note = prompt('Andika aho muzahurira n\'igihe:');
+        if (note === null) return;
+        this.orderAction('meetup', id, { note });
+    },
+
+    disputeOrder(id) {
+        const reason = prompt('Sobanura ikibazo (bizajya ku bayobozi):');
+        if (!reason) return;
+        this.orderAction('dispute', id, { reason });
+    },
+
+    async reportListing(listingId) {
+        if (!this.token) { this.showPage('auth'); return; }
+        const reason = prompt('Impamvu yo gutanga raporo kuri iki gicuruzwa:');
+        if (!reason) return;
+        try {
+            const data = await this.api('users.php?action=report-listing', {
+                method: 'POST', body: JSON.stringify({ listing_id: listingId, reason })
+            });
+            this.toast(data.message, 'success');
+        } catch (e) { this.toast(e.message, 'error'); }
+    },
+
+    /* ─── MEMBER PORTAL: INVENTORY ─── */
+    async loadInventory() {
+        if (!this.token) { this.showPage('auth'); return; }
+        const tbody = document.getElementById('inventory-table');
+        tbody.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+        try {
+            const data = await this.api(`listings.php?user_id=${this.user.id}&limit=50`);
+            tbody.innerHTML = data.listings.length ? data.listings.map(l => `
+                <tr>
+                    <td>${this.esc(l.title)}</td>
+                    <td>${l.price_formatted}</td>
+                    <td>
+                        <input type="number" min="0" value="${l.quantity ?? 1}" class="qty-input" id="qty-${l.id}">
+                        <button class="btn-mini" onclick="App.saveQuantity(${l.id})">Bika</button>
+                    </td>
+                    <td><span class="pill status-${l.status}">${l.status}</span></td>
+                    <td><span class="pill">${l.approval_status || 'approved'}</span></td>
+                    <td>
+                        <button class="btn-mini" onclick="App.setListingStatus(${l.id},'active')">Active</button>
+                        <button class="btn-mini" onclick="App.setListingStatus(${l.id},'reserved')">Reserved</button>
+                        <button class="btn-mini" onclick="App.setListingStatus(${l.id},'sold')">Sold</button>
+                    </td>
+                </tr>`).join('') : '<tr><td colspan="6">Nta gicuruzwa</td></tr>';
+        } catch (e) { tbody.innerHTML = `<tr><td colspan="6">${this.esc(e.message)}</td></tr>`; }
+    },
+
+    async saveQuantity(id) {
+        const quantity = parseInt(document.getElementById(`qty-${id}`).value, 10) || 0;
+        try {
+            await this.api(`listings.php?id=${id}`, { method: 'PUT', body: JSON.stringify({ quantity }) });
+            this.toast('Ububiko bwavuguruwe ✅', 'success');
+        } catch (e) { this.toast(e.message, 'error'); }
+    },
+
+    async setListingStatus(id, status) {
+        try {
+            await this.api(`listings.php?id=${id}`, { method: 'PUT', body: JSON.stringify({ status }) });
+            this.toast('Byahinduwe ✅', 'success');
+            this.loadInventory();
+        } catch (e) { this.toast(e.message, 'error'); }
+    },
+
+    /* ─── MEMBER PORTAL: SALES ANALYTICS ─── */
+    async loadSalesAnalytics() {
+        if (!this.token) { this.showPage('auth'); return; }
+        const cards = document.getElementById('sales-cards');
+        cards.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+        try {
+            const { totals, monthly_orders, top_listings } = await this.api('orders.php?action=analytics');
+            cards.innerHTML = [
+                ['Ibicuruzwa byose', totals.listings, ''],
+                ['Biragurishwa', totals.active, ''],
+                ['Byagurishijwe', totals.sold, ''],
+                ['Amatumizwa', totals.orders, ''],
+                ['Kurebwa', totals.views, ''],
+                ['Injiza', totals.revenue_formatted, 'orange'],
+            ].map(([label, val, cls]) => `
+                <div class="metric-card ${cls}">
+                    <div class="metric-label">${label}</div>
+                    <div class="metric-value">${val}</div>
+                </div>`).join('');
+
+            this.renderBars('sales-month-chart', monthly_orders);
+            this.renderBars('sales-top-chart', top_listings);
+        } catch (e) { cards.innerHTML = `<div class="empty-state"><p>${this.esc(e.message)}</p></div>`; }
+    },
+
+    renderBars(elementId, rows) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        if (!rows || !rows.length) { el.innerHTML = '<div class="chart-empty">Nta makuru arahari</div>'; return; }
+        const max = Math.max(...rows.map(r => Number(r.value) || 0), 1);
+        el.innerHTML = rows.map(r => `
+            <div class="bar-row">
+                <div class="bar-label" title="${this.esc(r.label)}">${this.esc(r.label)}</div>
+                <div class="bar-track"><div class="bar-fill" style="width:${(Number(r.value) / max) * 100}%"></div></div>
+                <div class="bar-value">${r.value}</div>
+            </div>`).join('');
+    },
+
+    /* ─── MEMBER PORTAL: NOTIFICATIONS ─── */
+    async loadNotifications() {
+        if (!this.token) { this.showPage('auth'); return; }
+        const list = document.getElementById('notif-list');
+        list.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+        try {
+            const { notifications } = await this.api('notifications.php?action=list');
+            list.innerHTML = notifications.length ? notifications.map(n => `
+                <div class="notif-item ${n.is_read == 0 ? 'unread' : ''}" onclick="App.openNotification(${n.id}, '${n.link_type || ''}', ${n.link_id || 0})">
+                    <div class="notif-title">${this.esc(n.title)}</div>
+                    <div class="notif-body">${this.esc(n.body || '')}</div>
+                    <div class="notif-time">${n.time_ago}</div>
+                </div>`).join('')
+                : '<div class="empty-state"><div class="ico">🔔</div><h3>Nta matangazo</h3><p>Uzabona amakuru y\'amatumizwa hano</p></div>';
+        } catch (e) { list.innerHTML = `<div class="empty-state"><p>${this.esc(e.message)}</p></div>`; }
+    },
+
+    async openNotification(id, linkType, linkId) {
+        try { await this.api('notifications.php?action=read', { method: 'POST', body: JSON.stringify({ id }) }); } catch {}
+        this.refreshBell();
+        if (linkType === 'order' && linkId) this.openTrack(linkId);
+        else if (linkType === 'listing' && linkId) this.showPage('detail', linkId);
+        else this.loadNotifications();
+    },
+
+    async markAllNotificationsRead() {
+        try {
+            await this.api('notifications.php?action=read-all', { method: 'POST' });
+            this.loadNotifications();
+            this.refreshBell();
+        } catch (e) { this.toast(e.message, 'error'); }
+    },
+
+    async refreshBell() {
+        if (!this.token) return;
+        try {
+            const { unread } = await this.api('notifications.php?action=count');
+            const badge = document.getElementById('bell-badge');
+            if (!badge) return;
+            badge.textContent = unread;
+            badge.style.display = unread > 0 ? 'inline-flex' : 'none';
         } catch {}
     },
 
@@ -582,6 +972,7 @@ const App = {
         document.getElementById('search-input')?.addEventListener('input', () => {
             clearTimeout(t); t = setTimeout(() => this.loadHome(), 400);
         });
+        setInterval(() => this.refreshBell(), 60000);
     }
 };
 

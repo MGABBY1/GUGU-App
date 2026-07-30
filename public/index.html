@@ -23,7 +23,11 @@
     </div>
     <nav class="header-nav">
         <button class="hdr-btn hdr-btn-sell" onclick="App.showPage('sell')">+ Shyira igicuruzwa</button>
+        <button class="hdr-btn" onclick="App.showPage('purchases')" id="hdr-purchases">🛍️ Ibyo naguze</button>
         <button class="hdr-btn" onclick="App.showPage('chat')" id="hdr-chat">💬 Ubutumwa</button>
+        <button class="hdr-btn hdr-bell" onclick="App.showPage('notifications')" id="hdr-bell">
+            🔔 <span class="bell-badge" id="bell-badge" style="display:none">0</span>
+        </button>
         <div id="hdr-guest">
             <button class="hdr-btn" onclick="App.showPage('auth')">Injira</button>
             <button class="hdr-btn" onclick="App.showPage('register')">Iyandikishe</button>
@@ -282,6 +286,12 @@
                 <div class="tab" onclick="App.showPage('my-listings')">📦 Ibicuruzwa byanjye</div>
                 <div class="tab" onclick="App.showPage('sell')">➕ Shyira igicuruzwa</div>
                 <div class="tab" onclick="App.showPage('favorites')">❤️ Byakunzwe</div>
+                <div class="tab" onclick="App.showPage('purchases')">🛍️ Ibyo naguze</div>
+                <div class="tab" onclick="App.showPage('inventory')">📦 Ububiko</div>
+                <div class="tab" onclick="App.showPage('sales')">📈 Isesengura</div>
+            </div>
+            <div id="admin-portal-link" style="display:none;margin-top:12px">
+                <a class="btn btn-outline" href="../admin/">🛡️ Administrative Portal</a>
             </div>
             <button class="btn btn-outline" onclick="App.logout()" style="margin-top:8px">Sohoka</button>
         </div>
@@ -315,6 +325,93 @@
         </div>
     </div>
 
+    <!-- ═══════════════ MY PURCHASES (Order History · Track Item · Escrow Wallet) ═══════════════ -->
+    <div id="page-purchases" class="page">
+        <div class="main-content my-layout">
+            <h1 class="page-title">🛍️ Ibyo naguze <span>· My Purchases</span></h1>
+            <div class="tabs">
+                <div class="tab on" onclick="App.purchasesTab('history', this)">📜 Amateka y'ubuguzi</div>
+                <div class="tab" onclick="App.purchasesTab('track', this)">📍 Kurikirana igicuruzwa</div>
+                <div class="tab" onclick="App.purchasesTab('wallet', this)">🔐 Escrow Wallet</div>
+            </div>
+
+            <div id="purchases-history" class="portal-pane">
+                <div id="orders-list" class="order-list"></div>
+            </div>
+
+            <div id="purchases-track" class="portal-pane" style="display:none">
+                <div class="track-layout">
+                    <div class="track-picker" id="track-picker"></div>
+                    <div class="track-detail" id="track-detail">
+                        <div class="empty-state" style="padding:60px 24px">
+                            <div class="ico">📍</div>
+                            <h3>Hitamo itumizwa</h3>
+                            <p>Kanda ku itumizwa kugira ngo urebe aho rigeze</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="purchases-wallet" class="portal-pane" style="display:none">
+                <div class="wallet-cards" id="wallet-cards"></div>
+                <h3 class="section-head">Ibikorwa bya escrow</h3>
+                <div class="table-card">
+                    <table class="portal-table">
+                        <thead><tr><th>Igihe</th><th>Ubwoko</th><th>Igicuruzwa</th><th>Amafaranga</th></tr></thead>
+                        <tbody id="wallet-tx"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ INVENTORY (seller stock) ═══════════════ -->
+    <div id="page-inventory" class="page">
+        <div class="main-content my-layout">
+            <h1 class="page-title">📦 Ububiko bwanjye <span>· Inventory</span></h1>
+            <div class="table-card">
+                <table class="portal-table">
+                    <thead><tr><th>Igicuruzwa</th><th>Igiciro</th><th>Umubare</th><th>Imiterere</th><th>Kwemezwa</th><th>Ibikorwa</th></tr></thead>
+                    <tbody id="inventory-table"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ SALES ANALYTICS ═══════════════ -->
+    <div id="page-sales" class="page">
+        <div class="main-content my-layout">
+            <h1 class="page-title">📈 Isesengura ry'ubucuruzi <span>· Sales Analytics</span></h1>
+            <div class="wallet-cards" id="sales-cards"></div>
+            <h3 class="section-head">Amatumizwa buri kwezi</h3>
+            <div class="chart-card"><div id="sales-month-chart" class="bar-chart"></div></div>
+            <h3 class="section-head">Ibicuruzwa birebwa cyane</h3>
+            <div class="chart-card"><div id="sales-top-chart" class="bar-chart"></div></div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ NOTIFICATIONS ═══════════════ -->
+    <div id="page-notifications" class="page">
+        <div class="main-content my-layout">
+            <div class="notif-head">
+                <h1 class="page-title">🔔 Amatangazo</h1>
+                <button class="btn btn-outline" onclick="App.markAllNotificationsRead()">Soma byose</button>
+            </div>
+            <div id="notif-list" class="notif-list"></div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ═══════════════ MOBILE MONEY CHECKOUT ═══════════════ -->
+<div id="checkout-modal" class="modal-backdrop" style="display:none">
+    <div class="modal-card">
+        <div class="modal-head">
+            <h3>Kwishyura na Mobile Money</h3>
+            <button class="modal-x" onclick="App.closeCheckout()">✕</button>
+        </div>
+        <div id="checkout-body"></div>
+    </div>
 </div>
 
 <script src="js/app.js"></script>

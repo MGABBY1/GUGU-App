@@ -35,6 +35,10 @@ switch ($action) {
         if ($method === 'POST') submitReview();
         else jsonError('Method not allowed', 405);
         break;
+    case 'report-listing':
+        if ($method === 'POST') reportListing();
+        else jsonError('Method not allowed', 405);
+        break;
     default:
         jsonError('Invalid action', 404);
 }
@@ -178,6 +182,35 @@ function getCategories(): void {
 
 function getLocations(): void {
     jsonResponse(['success' => true, 'locations' => getRwandaLocations()]);
+}
+
+/**
+ * Member report -> Administrative Portal moderation queue.
+ */
+function reportListing(): void {
+    $user = requireAuth();
+    $data = getJsonInput();
+
+    $listingId = (int) ($data['listing_id'] ?? 0);
+    $reason = trim($data['reason'] ?? '');
+    if (!$listingId || $reason === '') jsonError('Sobanura impamvu yo gutanga raporo');
+
+    $db = getDB();
+    $stmt = $db->prepare('SELECT id FROM listings WHERE id = ?');
+    $stmt->execute([$listingId]);
+    if (!$stmt->fetch()) jsonError('Igicuruzwa ntikibonetse', 404);
+
+    $dup = $db->prepare('
+        SELECT id FROM reports
+        WHERE target_type = "listing" AND target_id = ? AND reporter_id = ? AND status = "open"
+    ');
+    $dup->execute([$listingId, $user['id']]);
+    if ($dup->fetch()) jsonError('Wasanzwe watanze raporo kuri iki gicuruzwa');
+
+    $db->prepare('INSERT INTO reports (reporter_id, target_type, target_id, reason, details) VALUES (?, "listing", ?, ?, ?)')
+       ->execute([$user['id'], $listingId, $reason, trim($data['details'] ?? '') ?: null]);
+
+    jsonResponse(['success' => true, 'message' => 'Raporo yoherejwe ku bagenzuzi'], 201);
 }
 
 function submitReview(): void {

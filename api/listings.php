@@ -56,6 +56,9 @@ function getListings(): void {
         }
     } else {
         $where[] = 'l.status = "active"';
+        if (tableHasColumn('listings', 'approval_status')) {
+            $where[] = 'l.approval_status = "approved"';
+        }
     }
 
     if (!empty($_GET['category'])) {
@@ -212,14 +215,26 @@ function createListing(): void {
         jsonError('Igiciro nticyemewe');
     }
 
-    $stmt = $db->prepare('
-        INSERT INTO listings (user_id, category_id, title, description, price, is_free, province, district, sector)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ');
-    $stmt->execute([
-        $user['id'], $categoryId, $title, $description, $price,
-        $isFree ? 1 : 0, $province, $district, $sector ?: null
-    ]);
+    $quantity = max(1, (int) ($_POST['quantity'] ?? 1));
+
+    $columns = ['user_id', 'category_id', 'title', 'description', 'price', 'is_free', 'province', 'district', 'sector'];
+    $values = [$user['id'], $categoryId, $title, $description, $price, $isFree ? 1 : 0, $province, $district, $sector ?: null];
+
+    if (tableHasColumn('listings', 'quantity')) {
+        $columns[] = 'quantity';
+        $values[] = $quantity;
+    }
+
+    // Listing Approval is a System Control — off by default so posting keeps working as before
+    $needsApproval = tableHasColumn('listings', 'approval_status') && getSetting('require_listing_approval', '0') === '1';
+    if (tableHasColumn('listings', 'approval_status')) {
+        $columns[] = 'approval_status';
+        $values[] = $needsApproval ? 'pending' : 'approved';
+    }
+
+    $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+    $stmt = $db->prepare('INSERT INTO listings (' . implode(', ', $columns) . ') VALUES (' . $placeholders . ')');
+    $stmt->execute($values);
     $listingId = (int) $db->lastInsertId();
 
     if (!empty($_FILES['images'])) {
@@ -249,7 +264,10 @@ function createListing(): void {
 
     jsonResponse([
         'success' => true,
-        'message' => 'Igicuruzwa cyashyizweho neza!',
+        'message' => $needsApproval
+            ? 'Igicuruzwa cyoherejwe — gitegereje kwemezwa n\'abagenzuzi'
+            : 'Igicuruzwa cyashyizweho neza!',
+        'pending_approval' => $needsApproval,
         'listing_id' => $listingId
     ], 201);
 }
@@ -287,6 +305,10 @@ function updateListing(int $id): void {
     if (isset($data['category_id'])) {
         $fields[] = 'category_id = ?';
         $params[] = (int) $data['category_id'];
+    }
+    if (isset($data['quantity']) && tableHasColumn('listings', 'quantity')) {
+        $fields[] = 'quantity = ?';
+        $params[] = max(0, (int) $data['quantity']);
     }
 
     if (empty($fields)) {

@@ -75,7 +75,240 @@ function requireAuth(): array {
     if (!$user) {
         jsonError('Nyamuneka winjire mbere (Please login first)', 401);
     }
+    if (!empty($user['is_banned'])) {
+        jsonError('Konti yawe yahagaritswe. Vugana na GUGU support.', 403);
+    }
     return $user;
+}
+
+/**
+ * Guards portal features so the app keeps working if setup.php has not been re-run yet.
+ */
+function tableHasColumn(string $table, string $column): bool {
+    static $cache = [];
+    $key = $table . '.' . $column;
+    if (isset($cache[$key])) return $cache[$key];
+
+    try {
+        $stmt = getDB()->prepare('
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?
+        ');
+        $stmt->execute([$table, $column]);
+        $cache[$key] = (int) $stmt->fetchColumn() > 0;
+    } catch (PDOException $e) {
+        $cache[$key] = false;
+    }
+    return $cache[$key];
+}
+
+/* ─────────── Roles & permissions (Administrative Portal) ─────────── */
+
+const ADMIN_ROLES = ['moderator', 'district_manager', 'super_admin'];
+
+/**
+ * Legacy super admins kept so the original backend login never breaks.
+ */
+function legacyAdminPhones(): array {
+    return ['+250789999999'];
+}
+
+function userRole(array $user): string {
+    $role = $user['role'] ?? 'member';
+    if ($role === 'member' && in_array($user['phone'] ?? '', legacyAdminPhones(), true)) {
+        return 'super_admin';
+    }
+    return $role;
+}
+
+function isAdminUser(array $user): bool {
+    return in_array(userRole($user), ADMIN_ROLES, true);
+}
+
+/**
+ * Permission matrix behind the portal's Permission Controls panel.
+ */
+function rolePermissions(string $role): array {
+    $moderator = [
+        'view_dashboard', 'view_moderation', 'approve_listing', 'reject_listing',
+        'view_listings', 'view_users', 'view_disputes',
+    ];
+    $districtManager = array_merge($moderator, [
+        'delete_listing', 'verify_user', 'ban_user',
+        'handle_dispute', 'view_analytics', 'view_regional_report',
+    ]);
+    $superAdmin = array_merge($districtManager, [
+        'manage_roles', 'system_controls', 'view_audit_log', 'view_all_districts',
+    ]);
+
+    return match ($role) {
+        'moderator' => $moderator,
+        'district_manager' => $districtManager,
+        'super_admin' => $superAdmin,
+        default => [],
+    };
+}
+
+function roleCan(string $role, string $permission): bool {
+    return in_array($permission, rolePermissions($role), true);
+}
+
+function requireAdmin(?string $permission = null): array {
+    $user = requireAuth();
+    if (!isAdminUser($user)) {
+        jsonError('Ntufite uburenganzira bwo kwinjira hano', 403);
+    }
+    $user['role'] = userRole($user);
+    if ($permission !== null && !roleCan($user['role'], $permission)) {
+        jsonError('Uru ruhare ntirwemerewe iki gikorwa (permission denied)', 403);
+    }
+    return $user;
+}
+
+/**
+ * District Managers and Moderators only see their own Akarere.
+ */
+function adminDistrictScope(array $admin): ?string {
+    if (roleCan(userRole($admin), 'view_all_districts')) {
+        return null;
+    }
+    $scope = $admin['managed_district'] ?? '';
+    return $scope !== '' ? $scope : ($admin['district'] ?? null);
+}
+
+function logAdminAction(int $adminId, string $action, ?string $targetType = null, ?int $targetId = null, ?string $details = null): void {
+    try {
+        getDB()->prepare('
+            INSERT INTO admin_audit_logs (actor_id, action, target_type, target_id, meta_json)
+            VALUES (?, ?, ?, ?, ?)
+        ')->execute([$adminId, $action, $targetType, $targetId, $details]);
+    } catch (PDOException $e) {
+        // Audit logging must never break an admin action
+    }
+}
+
+/* ─────────── System controls ─────────── */
+
+function getSetting(string $key, string $default = ''): string {
+    try {
+        $stmt = getDB()->prepare('SELECT setting_value FROM system_settings WHERE setting_key = ?');
+        $stmt->execute([$key]);
+        $value = $stmt->fetchColumn();
+        return $value === false ? $default : (string) $value;
+    } catch (PDOException $e) {
+        return $default;
+    }
+}
+
+function setSetting(string $key, string $value): void {
+    getDB()->prepare('
+        INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)
+        ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
+    ')->execute([$key, $value]);
+}
+
+/* ─────────── Notifications ─────────── */
+
+/**
+ * Link is stored as "order:12" / "listing:5" to match the shared notifications table.
+ */
+function notify(int $userId, string $type, string $title, ?string $body = null, ?string $linkType = null, ?int $linkId = null): void {
+    $link = ($linkType && $linkId) ? $linkType . ':' . $linkId : null;
+    try {
+        getDB()->prepare('
+            INSERT INTO notifications (user_id, type, title, body, link)
+            VALUES (?, ?, ?, ?, ?)
+        ')->execute([$userId, $type, $title, $body, $link]);
+    } catch (PDOException $e) {
+        // Notifications are best-effort
+    }
+}
+
+/* ─────────── Escrow wallet ─────────── */
+
+function escrowEntry(int $userId, string $direction, int $amount, ?int $orderId = null, string $provider = 'sandbox', ?string $providerRef = null, ?string $meta = null): void {
+    getDB()->prepare('
+        INSERT INTO escrow_ledger (order_id, user_id, direction, amount, provider, provider_ref, status, meta)
+        VALUES (?, ?, ?, ?, ?, ?, "success", ?)
+    ')->execute([$orderId, $userId, $direction, $amount, $provider, $providerRef, $meta]);
+
+    syncWallet($userId);
+}
+
+/**
+ * Keeps the wallets table in step with the escrow ledger.
+ */
+function syncWallet(int $userId): void {
+    $summary = walletSummary($userId);
+    try {
+        getDB()->prepare('
+            INSERT INTO wallets (user_id, available_balance, held_balance) VALUES (?, ?, ?)
+            ON DUPLICATE KEY UPDATE available_balance = VALUES(available_balance), held_balance = VALUES(held_balance)
+        ')->execute([$userId, $summary['earned'] + $summary['refunded'], $summary['held']]);
+    } catch (PDOException $e) {
+        // Wallet cache is derived data
+    }
+}
+
+/**
+ * Escrow totals derived from the ledger so both portals agree.
+ */
+function walletSummary(int $userId): array {
+    $db = getDB();
+    $sum = function (string $direction) use ($db, $userId): int {
+        $stmt = $db->prepare('
+            SELECT COALESCE(SUM(amount), 0) FROM escrow_ledger
+            WHERE user_id = ? AND direction = ? AND status = "success"
+        ');
+        $stmt->execute([$userId, $direction]);
+        return (int) $stmt->fetchColumn();
+    };
+
+    $held = $sum('hold');
+    $released = $sum('release');
+    $refunded = $sum('refund');
+
+    return [
+        'held' => max(0, $held - $released - $refunded),
+        'earned' => $sum('credit') + $released,
+        'spent' => $held,
+        'refunded' => $refunded,
+    ];
+}
+
+function generatePaymentRef(string $method): string {
+    $prefix = $method === 'airtel_money' ? 'AIRTEL' : ($method === 'cash' ? 'CASH' : 'MOMO');
+    return $prefix . '-' . strtoupper(bin2hex(random_bytes(4)));
+}
+
+function providerForMethod(string $method): string {
+    return match ($method) {
+        'airtel_money' => 'airtel',
+        'mtn_momo' => 'mtn',
+        default => 'sandbox',
+    };
+}
+
+function generateTrackCode(): string {
+    return 'GG' . strtoupper(bin2hex(random_bytes(5)));
+}
+
+/**
+ * Escrow state for an order, derived from its ledger rows.
+ */
+function orderEscrowStatus(int $orderId): string {
+    $db = getDB();
+    $stmt = $db->prepare('
+        SELECT direction FROM escrow_ledger
+        WHERE order_id = ? AND status = "success"
+    ');
+    $stmt->execute([$orderId]);
+    $directions = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    if (in_array('refund', $directions, true)) return 'refunded';
+    if (in_array('release', $directions, true)) return 'released';
+    if (in_array('hold', $directions, true)) return 'held';
+    return 'unpaid';
 }
 
 function handleImageUpload(array $file): ?string {
