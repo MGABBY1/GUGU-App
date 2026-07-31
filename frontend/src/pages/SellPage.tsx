@@ -6,7 +6,7 @@ import { Header } from '../components/BottomNav';
 import { provinceForDistrict, sectorsForDistrict } from '../data/rwanda';
 import { useLang } from '../i18n/LanguageContext';
 
-/** Item categories for Post an item (excludes All=1 and Jobs=11) */
+/** Item categories for Post an item (excludes All=1; Jobs is a separate tile → post-job) */
 const SELL_CATEGORIES_FALLBACK: Category[] = [
   { id: 2, name_rw: 'Telefoni', name_en: 'Electronics', icon: 'phone' },
   { id: 3, name_rw: 'Imbaho', name_en: 'Furniture', icon: 'couch' },
@@ -18,6 +18,13 @@ const SELL_CATEGORIES_FALLBACK: Category[] = [
   { id: 9, name_rw: 'Ibikoresho', name_en: 'Appliances', icon: 'plug' },
   { id: 10, name_rw: 'Ibindi', name_en: 'Others', icon: 'box' },
 ];
+
+const JOBS_CATEGORY: Category = {
+  id: 11,
+  name_rw: 'Akazi',
+  name_en: 'Jobs',
+  icon: 'job',
+};
 
 function itemCategoriesOnly(list: Category[]): Category[] {
   return list.filter(c => {
@@ -208,6 +215,7 @@ export default function SellPage() {
             </div>
             <div className="seed-field">
               <label>{t('category')}</label>
+              <p className="sell-browse-hint">{t('welcome_sub')}</p>
               <div className="sell-cat-grid" role="listbox" aria-label={t('category')}>
                 {categories.map(c => {
                   const id = String(c.id);
@@ -226,6 +234,15 @@ export default function SellPage() {
                     </button>
                   );
                 })}
+                <button
+                  type="button"
+                  className="sell-cat-btn sell-cat-jobs"
+                  onClick={() => push('post-job')}
+                  aria-label={t('available_jobs')}
+                >
+                  <span className="sell-cat-ico">{CATEGORY_ICONS[JOBS_CATEGORY.icon] || '💼'}</span>
+                  <span className="sell-cat-name">{t('jobs_home_pill')}</span>
+                </button>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', marginBottom: 12 }}>

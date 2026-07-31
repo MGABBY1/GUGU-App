@@ -48,7 +48,7 @@ $bodyClass = match ($role_id) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?= htmlspecialchars($portalTitle) ?> · Gura & Gurisha</title>
-  <link rel="stylesheet" href="/gugu-app/admin/assets/admin.css?v=20260731super">
+  <link rel="stylesheet" href="/gugu-app/admin/assets/admin.css?v=20260731super2">
 </head>
 <body class="<?= htmlspecialchars($bodyClass) ?>">
   <div class="app-layout">
@@ -62,22 +62,16 @@ $bodyClass = match ($role_id) {
             <?= htmlspecialchars($nick) ?>
             <?= !empty($_SESSION['email']) ? ' · ' . htmlspecialchars($_SESSION['email']) : '' ?>
             <?php if ($actual_role_id === 1 && $role_id !== 1): ?>
-              · Viewing as System Administrator
+              · Preview mode (you remain System Administrator)
             <?php endif; ?>
           </span>
         </div>
         <div class="topbar-actions">
-          <?php if ($actual_role_id === 1): ?>
-            <form method="get" action="/gugu-app/admin/dashboard.php" class="dashboard-switcher">
-              <label>
-                Open dashboard
-                <select name="view_role" onchange="this.form.submit()">
-                  <option value="1" <?= $role_id === 1 ? 'selected' : '' ?>>Super Admin · Global</option>
-                  <option value="2" <?= $role_id === 2 ? 'selected' : '' ?>>District Manager · Regional</option>
-                  <option value="3" <?= $role_id === 3 ? 'selected' : '' ?>>Moderator · Local</option>
-                </select>
-              </label>
-              <?php if ($role_id === 2 || $role_id === 3): ?>
+          <?php if ($actual_role_id === 1 && $role_id !== 1): ?>
+            <a class="btn-link" href="/gugu-app/admin/dashboard.php">← Back to Super Admin</a>
+            <?php if ($role_id === 2 || $role_id === 3): ?>
+              <form method="get" action="/gugu-app/admin/dashboard.php" class="dashboard-switcher">
+                <input type="hidden" name="view_role" value="<?= (int) $role_id ?>">
                 <label>
                   Akarere
                   <select name="view_district" onchange="this.form.submit()">
@@ -88,9 +82,8 @@ $bodyClass = match ($role_id) {
                     <?php endforeach; ?>
                   </select>
                 </label>
-              <?php endif; ?>
-              <noscript><button type="submit" class="btn-link">Open</button></noscript>
-            </form>
+              </form>
+            <?php endif; ?>
           <?php endif; ?>
           <a class="btn-link" href="/gugu-app/app/">Member marketplace</a>
           <a class="btn-link danger" href="/gugu-app/admin/logout.php">Logout</a>

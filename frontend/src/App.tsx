@@ -63,8 +63,10 @@ export default function App() {
       <AuthProvider>
         <ToastProvider>
           <StackProvider initial={start.name} initialParams={start.params}>
-            <StaffControlBar />
-            <StackNavigator screens={screens} />
+            <div className="app-frame">
+              <StaffControlBar />
+              <StackNavigator screens={screens} />
+            </div>
           </StackProvider>
         </ToastProvider>
       </AuthProvider>

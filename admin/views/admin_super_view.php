@@ -178,9 +178,9 @@ function adminSectionUserRow(array $u, int $selfId, array $districts, array $rol
       </div>
       <div class="admin-owner-hero-inner">
         <div class="portal-hero-text">
-          <span class="portal-kicker">Super Admin · Global (platform owner)</span>
+          <span class="portal-kicker">System Administrator (Super Admin) · Global</span>
           <h2>System Control Center</h2>
-          <p>Same portal look — your focus is system health, platform-wide money, staff permissions, and opening any District or Moderator dashboard.</p>
+          <p>Your Super Admin portal — system settings, staff permissions, money, and nationwide item/job approvals.</p>
         </div>
         <div class="stats admin-owner-stats">
           <div class="stat"><strong><?= $staffCount ?></strong><span>Staff</span></div>
@@ -190,6 +190,27 @@ function adminSectionUserRow(array $u, int $selfId, array $districts, array $rol
         </div>
       </div>
     </section>
+
+    <div class="admin-group">
+      <h3 class="admin-group-title">Approve posts first</h3>
+      <p class="admin-group-sub">Items and Jobs wait here until you Mark paid → Approve</p>
+      <div class="admin-command-grid">
+        <button type="button" class="admin-cmd-card tone-blue" data-open="listings">
+          <div class="admin-cmd-top">
+            <span class="admin-cmd-ico" aria-hidden="true">✅</span>
+            <span class="admin-cmd-tag">Approvals</span>
+          </div>
+          <h3>Item &amp; Job Approvals</h3>
+          <p>Nationwide queue for marketplace items and job announcements.</p>
+          <ul class="admin-cmd-meta">
+            <li>Waiting · <strong><?= $review ?></strong></li>
+            <li>Paid &amp; ready · <strong><?= $paidPending ?></strong></li>
+            <li>Unpaid · <strong><?= $unpaidPending ?></strong></li>
+          </ul>
+          <span class="admin-cmd-go">Open approvals →</span>
+        </button>
+      </div>
+    </div>
 
     <div class="admin-group">
       <h3 class="admin-group-title">Platform owner · Global</h3>
@@ -302,13 +323,13 @@ function adminSectionUserRow(array $u, int $selfId, array $districts, array $rol
             <span class="admin-cmd-ico" aria-hidden="true">✅</span>
             <span class="admin-cmd-tag">Approvals</span>
           </div>
-          <h3>Nationwide listing queue</h3>
-          <p>Pay → Mark paid → Approve.</p>
+          <h3>Item &amp; Job Approvals</h3>
+          <p>Mark paid → Approve items and jobs.</p>
           <ul class="admin-cmd-meta">
             <li>Queue · <strong><?= $review ?></strong></li>
             <li>Ready · <strong><?= $paidPending ?></strong></li>
           </ul>
-          <span class="admin-cmd-go">Open queue →</span>
+          <span class="admin-cmd-go">Open approvals →</span>
         </button>
         <button type="button" class="admin-cmd-card tone-green" data-open="reports">
           <div class="admin-cmd-top">
@@ -552,9 +573,9 @@ function adminSectionUserRow(array $u, int $selfId, array $districts, array $rol
   <section class="admin-pane" data-pane="listings" id="listings">
     <header class="admin-pane-head">
       <button type="button" class="admin-back" data-open="home">← Dashboard</button>
-      <span class="admin-pane-kicker">Money &amp; listings</span>
-      <h2>Nationwide listing queue</h2>
-      <p class="admin-pane-sub">Pay <?= $fee ?> RWF → Mark paid → Approve. Queue · <?= $review ?> · Ready · <?= $paidPending ?></p>
+      <span class="admin-pane-kicker">Item &amp; Job Approvals</span>
+      <h2>Item &amp; Job Approvals</h2>
+      <p class="admin-pane-sub">Marketplace items + job announcements · Pay <?= $fee ?> RWF → Mark paid → Approve · Queue · <?= $review ?> · Ready · <?= $paidPending ?></p>
     </header>
     <section class="panel">
       <div class="rw-flag-bar thin" aria-hidden="true">
@@ -811,7 +832,7 @@ function adminSectionUserRow(array $u, int $selfId, array $districts, array $rol
           <span class="admin-cmd-go">Open Moderator view →</span>
         </a>
       </div>
-      <p class="hint" style="margin-top:14px">Or use <strong>Open dashboard</strong> in the top bar to pick any Akarere. From Permission Controls you can open a specific staff member’s scoped dashboard.</p>
+      <p class="hint" style="margin-top:14px">District / Moderator previews open from this page only. Your default portal stays <strong>System Administrator (Super Admin)</strong>.</p>
     </section>
   </section>
 
@@ -843,15 +864,27 @@ function adminSectionUserRow(array $u, int $selfId, array $districts, array $rol
     staff: 'permissions'
   };
 
+  function currentPaneKey() {
+    try {
+      var q = new URLSearchParams(location.search || '');
+      if (q.get('pane')) return q.get('pane');
+    } catch (e) {}
+    return (location.hash || '#home').replace(/^#/, '') || 'home';
+  }
+
   function openPane(key) {
     key = alias[key] || 'home';
     if (!shell.querySelector('[data-pane="' + key + '"]')) key = 'home';
     shell.querySelectorAll('.admin-pane').forEach(function (p) {
       p.classList.toggle('is-active', p.getAttribute('data-pane') === key);
     });
-    if (history.replaceState) {
-      history.replaceState(null, '', key === 'home' ? location.pathname + location.search : '#' + key);
-    }
+    try {
+      var url = new URL(location.href);
+      if (key === 'home') url.searchParams.delete('pane');
+      else url.searchParams.set('pane', key);
+      url.hash = '';
+      if (history.replaceState) history.replaceState(null, '', url.pathname + url.search);
+    } catch (e) {}
     window.scrollTo(0, 0);
   }
 
@@ -863,17 +896,26 @@ function adminSectionUserRow(array $u, int $selfId, array $districts, array $rol
   });
 
   document.addEventListener('click', function (e) {
-    var a = e.target.closest('a[href^="#"]');
+    var a = e.target.closest('a[href]');
     if (!a) return;
-    var hash = (a.getAttribute('href') || '').replace(/^#/, '');
-    if (!hash || !alias[hash]) return;
+    var href = a.getAttribute('href') || '';
+    var pane = '';
+    try {
+      if (href.indexOf('pane=') !== -1) {
+        pane = new URL(href, location.origin).searchParams.get('pane') || '';
+      } else if (href.charAt(0) === '#') {
+        pane = href.replace(/^#/, '');
+      }
+    } catch (err) {}
+    if (!pane || !alias[pane]) return;
+    if (href.indexOf('view_role=') !== -1) return;
     e.preventDefault();
-    openPane(hash);
+    openPane(pane);
   });
 
-  openPane((location.hash || '#home').replace(/^#/, '') || 'home');
+  openPane(currentPaneKey());
   window.addEventListener('hashchange', function () {
-    openPane((location.hash || '#home').replace(/^#/, '') || 'home');
+    openPane(currentPaneKey());
   });
 })();
 </script>

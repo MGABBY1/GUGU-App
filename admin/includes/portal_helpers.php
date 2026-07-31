@@ -26,8 +26,13 @@ function portalDistricts(): array {
     ];
 }
 
-function portalRedirect(string $hash = ''): void {
-    $url = '/gugu-app/admin/dashboard.php' . ($hash !== '' ? '#' . ltrim($hash, '#') : '');
+function portalRedirect(string $pane = ''): void {
+    // Use ?pane= — browsers drop #hash on HTTP Location redirects
+    $url = '/gugu-app/admin/dashboard.php';
+    $pane = trim(ltrim($pane, '#/'));
+    if ($pane !== '') {
+        $url .= '?pane=' . rawurlencode($pane);
+    }
     header('Location: ' . $url);
     exit;
 }

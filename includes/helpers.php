@@ -54,7 +54,10 @@ function formatPrice(int $price): string {
 function getAuthUser(): ?array {
     $token = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
     $token = str_replace('Bearer ', '', $token);
-    if (empty($token)) return null;
+    if ($token === '') {
+        $token = (string) ($_SERVER['HTTP_X_GUGU_TOKEN'] ?? $_POST['token'] ?? '');
+    }
+    if ($token === '') return null;
 
     $db = getDB();
     $stmt = $db->prepare('
@@ -66,8 +69,129 @@ function getAuthUser(): ?array {
     $user = $stmt->fetch();
     if ($user) {
         unset($user['password_hash']);
+        $user = enrichUserFlags($user);
     }
     return $user ?: null;
+}
+
+/** Role 1–3 = staff (Super Admin / District Manager / Moderator). */
+function isStaffRoleId(int $roleId): bool {
+    return $roleId >= 1 && $roleId <= 3;
+}
+
+function roleName(int $roleId): string {
+    return match ($roleId) {
+        1 => 'System Administrator',
+        2 => 'District Manager',
+        3 => 'Moderator / Support',
+        4 => 'Member',
+        default => 'Guest',
+    };
+}
+
+function requireStaff(array $actor): void {
+    $roleId = (int) ($actor['role_id'] ?? 0);
+    if (!isStaffRoleId($roleId)) {
+        jsonError('Staff access only', 403);
+    }
+    $status = (string) ($actor['account_status'] ?? 'active');
+    if (in_array($status, ['suspended', 'banned'], true) || !empty($actor['is_banned'])) {
+        jsonError('Account suspended', 403);
+    }
+}
+
+function syncAccountKind(PDO $db, int $userId, int $roleId): void {
+    $kind = isStaffRoleId($roleId) ? 'staff' : 'member';
+    try {
+        $db->prepare('UPDATE users SET account_kind = ? WHERE id = ?')->execute([$kind, $userId]);
+    } catch (Throwable $e) {
+        // older schemas may lack account_kind
+    }
+}
+
+function writeAuditLog(int $actorId, string $action, ?string $targetType = null, ?int $targetId = null, array $meta = []): void {
+    try {
+        getDB()->prepare('
+            INSERT INTO admin_audit_logs (actor_id, action, target_type, target_id, meta_json)
+            VALUES (?, ?, ?, ?, ?)
+        ')->execute([
+            $actorId,
+            $action,
+            $targetType,
+            $targetId,
+            $meta ? json_encode($meta, JSON_UNESCAPED_UNICODE) : null,
+        ]);
+    } catch (Throwable $e) {
+        // never break portal actions
+    }
+}
+
+function enrichUserFlags(array $user): array {
+    $roleId = (int) ($user['role_id'] ?? 4);
+    $user['role_id'] = $roleId;
+    $user['is_staff'] = isStaffRoleId($roleId);
+    $user['is_management'] = $user['is_staff'];
+    $user['account_kind'] = $user['is_staff'] ? 'management' : 'member';
+    $user['is_member'] = !$user['is_staff'];
+    $nick = trim((string) ($user['nickname'] ?? ''));
+    $user['needs_profile'] = $nick === '';
+
+    $daysWindow = defined('LOCATION_VERIFY_DAYS') ? (int) LOCATION_VERIFY_DAYS : 30;
+    $verifiedAt = $user['location_verified_at'] ?? null;
+    $locationOk = false;
+    $daysLeft = null;
+    if (!empty($verifiedAt)) {
+        $ts = strtotime((string) $verifiedAt);
+        if ($ts !== false) {
+            $expires = $ts + ($daysWindow * 86400);
+            $remaining = (int) ceil(($expires - time()) / 86400);
+            $locationOk = $remaining > 0;
+            $daysLeft = max(0, $remaining);
+        }
+    }
+    $user['location_ok'] = $locationOk;
+    $user['location_days_left'] = $daysLeft;
+    $user['needs_location'] = !$locationOk;
+
+    $idStatus = (string) ($user['id_status'] ?? 'none');
+    $user['needs_id_verification'] = $idStatus !== 'approved';
+    if ($user['is_staff']) {
+        $user['needs_profile'] = false;
+        $user['needs_location'] = false;
+        $user['needs_id_verification'] = false;
+    }
+    return $user;
+}
+
+function startStaffPhpSession(array $user): void {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_set_cookie_params([
+            'lifetime' => defined('SESSION_LIFETIME') ? (int) SESSION_LIFETIME : 0,
+            'path' => '/',
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+        session_start();
+    }
+    $_SESSION['user_id'] = (int) $user['id'];
+    $_SESSION['role_id'] = (int) ($user['role_id'] ?? 4);
+    $_SESSION['nickname'] = $user['nickname'] ?? $user['full_name'] ?? 'Staff';
+    $_SESSION['phone'] = $user['phone'] ?? '';
+    $_SESSION['email'] = $user['email'] ?? '';
+    $_SESSION['district'] = $user['district'] ?? '';
+    $_SESSION['admin_district'] = $user['admin_district'] ?? ($user['district'] ?? '');
+}
+
+function clearStaffPhpSession(): void {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    $_SESSION = [];
+    if (ini_get('session.use_cookies')) {
+        $p = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, $p['path'], $p['domain'] ?? '', (bool) $p['secure'], (bool) $p['httponly']);
+    }
+    session_destroy();
 }
 
 function requireAuth(): array {

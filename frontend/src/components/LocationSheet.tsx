@@ -105,6 +105,7 @@ export function LocationSheet({ open, onClose, onSaved }: Props) {
         province: provinceForDistrict(district),
       });
       syncHomeLocationFilter(district, sector);
+      try { sessionStorage.removeItem('gugu_loc_prompted'); } catch { /* ignore */ }
       toast(`${t('gps_ok')} — ${district}${sector ? ' / ' + sector : ''}`, 'success');
       onSaved?.({ district, sector });
       onClose();

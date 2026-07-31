@@ -6,7 +6,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #FFF4ED, #F2F3F6);
+    background: linear-gradient(160deg, #E6F6FC, #F2F3F6 50%, #E8F5EE);
 }
 .login-card {
     background: white;
@@ -18,7 +18,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     text-align: center;
 }
 .login-logo { font-size: 3rem; margin-bottom: 8px; }
-.login-card h1 { font-size: 1.5rem; color: #FF6F0F; margin-bottom: 4px; }
+.login-card h1 { font-size: 1.5rem; color: #00A1DE; margin-bottom: 4px; }
 .login-card p { color: #868B94; font-size: 0.875rem; margin-bottom: 24px; }
 .login-card input {
     width: 100%;
@@ -31,7 +31,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .login-card button {
     width: 100%;
     padding: 13px;
-    background: #FF6F0F;
+    background: #00A1DE;
     color: white;
     border: none;
     border-radius: 8px;
@@ -53,7 +53,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     padding: 20px 0;
     flex-shrink: 0;
 }
-.sidebar-brand { padding: 0 20px 24px; font-weight: 800; font-size: 1.1rem; color: #FF6F0F; }
+.sidebar-brand { padding: 0 20px 24px; font-weight: 800; font-size: 1.1rem; color: #00A1DE; }
 .sidebar nav { flex: 1; }
 .nav-link {
     display: block;
@@ -63,13 +63,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     font-size: 0.875rem;
     transition: all 0.15s;
 }
-.nav-link:hover, .nav-link.active { background: rgba(255,111,15,0.15); color: #FF6F0F; }
+.nav-link:hover, .nav-link.active { background: rgba(0,161,222,0.15); color: #00A1DE; }
 .sidebar-foot { border-top: 1px solid #333; padding-top: 8px; }
 
 .main { flex: 1; padding: 24px 28px; overflow-x: auto; }
 .main-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
 .main-head h2 { font-size: 1.375rem; font-weight: 700; }
-.admin-badge { background: #FFF4ED; color: #FF6F0F; padding: 6px 14px; border-radius: 20px; font-size: 0.8125rem; font-weight: 600; }
+.admin-badge { background: #E6F6FC; color: #00A1DE; padding: 6px 14px; border-radius: 20px; font-size: 0.8125rem; font-weight: 600; }
 
 .tab { display: none; }
 .tab.active { display: block; }
@@ -87,7 +87,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 }
 .stat-card .label { font-size: 0.8125rem; color: #868B94; margin-bottom: 6px; }
 .stat-card .value { font-size: 2rem; font-weight: 800; color: #212124; }
-.stat-card.orange .value { color: #FF6F0F; }
+.stat-card.orange .value { color: #00A1DE; }
 
 .table-wrap { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
 table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
@@ -107,7 +107,7 @@ td { padding: 12px 16px; border-top: 1px solid #F2F3F6; }
     .nav-link { padding: 8px 12px; }
 }
 
-/* ═══ Administrative Portal — roles, queue, charts, controls ═══ */
+/* ?�═??Administrative Portal ??roles, queue, charts, controls ?�═??*/
 
 .stat-card.warn .value { color: #B45309; }
 .stat-card.danger .value { color: #DC2626; }
@@ -134,7 +134,7 @@ td { padding: 12px 16px; border-top: 1px solid #F2F3F6; }
 }
 .btn-mini:hover { background: #EAEBEE; }
 .btn-primary {
-    background: #FF6F0F; color: white; border: none;
+    background: #00A1DE; color: white; border: none;
     padding: 11px 22px; border-radius: 8px; font-weight: 600;
     cursor: pointer; margin-top: 16px;
 }
@@ -144,7 +144,7 @@ td { padding: 12px 16px; border-top: 1px solid #F2F3F6; }
     border-radius: 6px; font-size: 0.8125rem; background: white;
 }
 .pill-role {
-    background: #FFF4ED; color: #FF6F0F;
+    background: #E6F6FC; color: #00A1DE;
     padding: 3px 10px; border-radius: 20px;
     font-size: 0.75rem; font-weight: 600;
 }
@@ -169,7 +169,7 @@ td { padding: 12px 16px; border-top: 1px solid #F2F3F6; }
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .bar-track { flex: 1; height: 10px; background: #F2F3F6; border-radius: 6px; overflow: hidden; }
-.bar-fill { height: 100%; background: #FF6F0F; border-radius: 6px; }
+.bar-fill { height: 100%; background: #00A1DE; border-radius: 6px; }
 .bar-value { width: 56px; text-align: right; font-weight: 700; font-size: 0.8125rem; }
 .chart-empty { color: #868B94; font-size: 0.875rem; }
 
@@ -178,7 +178,7 @@ td { padding: 12px 16px; border-top: 1px solid #F2F3F6; }
     display: flex; align-items: center; gap: 12px;
     font-size: 0.9375rem; cursor: pointer;
 }
-.setting-row input[type=checkbox] { width: 18px; height: 18px; accent-color: #FF6F0F; }
+.setting-row input[type=checkbox] { width: 18px; height: 18px; accent-color: #00A1DE; }
 .num-input {
     width: 90px; padding: 7px 10px;
     border: 1px solid #EAEBEE; border-radius: 6px;
@@ -204,7 +204,7 @@ td { padding: 12px 16px; border-top: 1px solid #F2F3F6; }
     flex-wrap: wrap;
 }
 .access-panel > div { flex: 1; min-width: 240px; }
-.access-panel strong { color: #FF8A3D; font-size: 0.9375rem; }
+.access-panel strong { color: #00A1DE; font-size: 0.9375rem; }
 .access-panel p { color: #ADB1BA; font-size: 0.75rem; margin-top: 3px; }
 .access-panel label {
     display: flex;
@@ -225,7 +225,7 @@ td { padding: 12px 16px; border-top: 1px solid #F2F3F6; }
 }
 .access-panel .btn-mini {
     height: 34px;
-    background: #FF6F0F;
+    background: #00A1DE;
     color: white;
 }
 
@@ -234,7 +234,7 @@ td { padding: 12px 16px; border-top: 1px solid #F2F3F6; }
     align-items: baseline;
     gap: 12px;
     background: white;
-    border-left: 4px solid #FF6F0F;
+    border-left: 4px solid #00A1DE;
     border-radius: 10px;
     padding: 14px 18px;
     margin-bottom: 16px;

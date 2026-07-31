@@ -94,7 +94,7 @@ export function JobsPage() {
 
         {!isAuthed && (
           <div className="chat-empty">
-            <div className="chat-empty-ico">?��</div>
+            <div className="chat-empty-ico">💼</div>
             <h2>{t('jobs_login_title')}</h2>
             <p>{t('jobs_login_hint')}</p>
             <button type="button" className="seed-btn seed-btn-carrot" onClick={goLogin}>
@@ -131,7 +131,7 @@ export function JobsPage() {
 
             {!loading && jobs.length === 0 && (
               <div className="chat-empty">
-                <div className="chat-empty-ico">?��</div>
+                <div className="chat-empty-ico">💼</div>
                 <h2>{t('no_jobs')}</h2>
                 <p>{t('no_jobs_hint')}</p>
                 <button type="button" className="seed-btn seed-btn-carrot" onClick={announce}>
@@ -159,7 +159,7 @@ export function JobsPage() {
                     <div className="jobs-card-meta">
                       <span className="jobs-announce-tag">{t('job_announcement')}</span>
                       {' · '}
-                      ?�� {job.sector ? `${job.sector}, ${job.district}` : job.district}
+                      📍 {job.sector ? `${job.sector}, ${job.district}` : job.district}
                       {' · '}
                       {timeAgo(job.created_at) || job.time_ago}
                     </div>

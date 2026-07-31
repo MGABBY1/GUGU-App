@@ -13,12 +13,39 @@ import { syncHomeLocationFilter } from '../data/geo';
 
 type SortKey = 'recent' | 'price_low' | 'price_high';
 
+/** Full Browse listings category strip (All + items + Jobs) */
+const HOME_CATEGORIES_FALLBACK: Category[] = [
+  { id: 1, name_rw: 'Byose', name_en: 'All', icon: 'home' },
+  { id: 2, name_rw: 'Telefoni', name_en: 'Electronics', icon: 'phone' },
+  { id: 3, name_rw: 'Imbaho', name_en: 'Furniture', icon: 'couch' },
+  { id: 4, name_rw: 'Imyambaro', name_en: 'Fashion', icon: 'shirt' },
+  { id: 5, name_rw: 'Imodoka', name_en: 'Vehicles', icon: 'car' },
+  { id: 6, name_rw: 'Inzu', name_en: 'Real Estate', icon: 'house' },
+  { id: 7, name_rw: 'Imikino', name_en: 'Sports', icon: 'ball' },
+  { id: 8, name_rw: 'Ibiryo', name_en: 'Food', icon: 'food' },
+  { id: 9, name_rw: 'Ibikoresho', name_en: 'Appliances', icon: 'plug' },
+  { id: 10, name_rw: 'Ibindi', name_en: 'Others', icon: 'box' },
+  { id: 11, name_rw: 'Akazi', name_en: 'Jobs', icon: 'job' },
+];
+
+function withAllHomeCategories(list: Category[]): Category[] {
+  const byId = new Map<number, Category>();
+  for (const c of HOME_CATEGORIES_FALLBACK) byId.set(c.id, c);
+  for (const c of list) {
+    const id = Number(c.id);
+    if (!Number.isFinite(id)) continue;
+    byId.set(id, { ...c, id });
+  }
+  if (!byId.has(11)) byId.set(11, HOME_CATEGORIES_FALLBACK[HOME_CATEGORIES_FALLBACK.length - 1]);
+  return [...byId.values()].sort((a, b) => a.id - b.id);
+}
+
 export default function HomePage() {
   const { push, resetTo } = useStack();
   const { user, isAuthed } = useAuth();
   const { t, price, timeAgo, category, province } = useLang();
   const [listings, setListings] = useState<Listing[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<Category[]>(HOME_CATEGORIES_FALLBACK);
   const [cat, setCat] = useState(0);
   const memberLocked = isAuthed && isMemberUser(user);
   // Members: locked to confirmed stay district. Guests/staff: optional filter.
@@ -57,6 +84,16 @@ export default function HomePage() {
       setLocOpen(true);
     }
   }, [memberLocked, user?.district, user?.sector, applyStayDistrict]);
+
+  // Prompt GPS verify when location is missing or expired (once per session)
+  useEffect(() => {
+    if (!isAuthed || !user?.needs_location || user?.is_staff) return;
+    try {
+      if (sessionStorage.getItem('gugu_loc_prompted') === '1') return;
+      sessionStorage.setItem('gugu_loc_prompted', '1');
+    } catch { /* ignore */ }
+    setLocOpen(true);
+  }, [isAuthed, user?.needs_location, user?.is_staff]);
 
   const applyHomeFilter = useCallback(() => {
     const filter = consumeHomeFilter();
@@ -139,8 +176,8 @@ export default function HomePage() {
 
   useEffect(() => {
     api.categories()
-      .then(d => setCategories((d.categories || []).filter(c => c.id !== 11)))
-      .catch(() => {});
+      .then(d => setCategories(withAllHomeCategories(d.categories || [])))
+      .catch(() => setCategories(HOME_CATEGORIES_FALLBACK));
   }, []);
 
   const loadListings = useCallback(() => {
@@ -297,62 +334,62 @@ export default function HomePage() {
           </div>
         </header>
 
-        {isAuthed && user && (
+        {isAuthed && user ? (
           <div className="market-welcome">
             <span>👋 {t('welcome')}, <strong>{user?.nickname || user?.full_name?.split(' ')[0]}</strong>!</span>
             <span className="market-welcome-sub">{t('welcome_sub')}</span>
           </div>
-        )}
-        {!isAuthed && (
+        ) : (
           <button
             type="button"
             className="market-welcome market-welcome-guest"
             onClick={() => resetTo('auth')}
-            style={{ background: 'linear-gradient(135deg, #E6F6FC 0%, #CCECF8 100%)', color: '#0A4A66', width: '100%', border: 0, textAlign: 'left', cursor: 'pointer' }}
           >
             <span>{t('guest_browse')}</span>
-            <span className="market-welcome-sub" style={{ display: 'block', marginTop: 4, opacity: 0.85 }}>
-              Tap to log in · Members sell with OTP · Management use phone + email
-            </span>
+            <span className="market-welcome-sub">{t('welcome_sub')}</span>
           </button>
         )}
 
-        <div className="market-categories">
-          {categories.map(c => (
-            <button
-              key={c.id}
-              className={`market-cat-pill${(cat === c.id || (cat === 0 && c.id === 1)) ? ' active' : ''}`}
-              onClick={() => {
-                if (c.id === 1) setCat(0);
-                else setCat(cat === c.id ? 0 : c.id);
-              }}
-            >
-              <span className="market-cat-icon">{CATEGORY_ICONS[c.icon] || '📦'}</span>
-              <span className="market-cat-label">{catName(c)}</span>
-            </button>
-          ))}
-          <button
-            type="button"
-            className="market-cat-pill market-cat-jobs"
-            onClick={() => {
-              if (!isAuthed) {
-                sessionStorage.setItem('gugu_after_login', 'jobs');
-                toast(t('login_first'), 'error');
-                resetTo('auth');
-                return;
-              }
-              push('jobs');
-            }}
-            aria-label={t('available_jobs')}
-          >
-            <span className="market-jobs-mark" aria-hidden>
-              <span className="market-jobs-mark-bar b1" />
-              <span className="market-jobs-mark-bar b2" />
-              <span className="market-jobs-mark-bar b3" />
-              <span className="market-jobs-mark-bag">💼</span>
-            </span>
-            <span className="market-cat-label">{t('jobs_home_pill')}</span>
-          </button>
+        <div className="market-categories" role="listbox" aria-label={t('nav_items')}>
+          {categories.map(c => {
+            const isJobs = Number(c.id) === 11;
+            const selected = !isJobs && (cat === c.id || (cat === 0 && c.id === 1));
+            return (
+              <button
+                key={c.id}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                className={`market-cat-pill${selected ? ' active' : ''}${isJobs ? ' market-cat-jobs' : ''}`}
+                onClick={() => {
+                  if (isJobs) {
+                    if (!isAuthed) {
+                      sessionStorage.setItem('gugu_after_login', 'jobs');
+                      toast(t('login_first'), 'error');
+                      resetTo('auth');
+                      return;
+                    }
+                    push('jobs');
+                    return;
+                  }
+                  if (c.id === 1) setCat(0);
+                  else setCat(cat === c.id ? 0 : c.id);
+                }}
+              >
+                {isJobs ? (
+                  <span className="market-jobs-mark" aria-hidden>
+                    <span className="market-jobs-mark-bar b1" />
+                    <span className="market-jobs-mark-bar b2" />
+                    <span className="market-jobs-mark-bar b3" />
+                    <span className="market-jobs-mark-bag">💼</span>
+                  </span>
+                ) : (
+                  <span className="market-cat-icon">{CATEGORY_ICONS[c.icon] || '📦'}</span>
+                )}
+                <span className="market-cat-label">{isJobs ? t('jobs_home_pill') : catName(c)}</span>
+              </button>
+            );
+          })}
         </div>
 
         <section className="market-jobs-banner" aria-label={t('available_jobs')}>

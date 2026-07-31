@@ -11,6 +11,7 @@ function guguManagementRoles(): array {
             'kicker' => 'Super Admin · Global (platform owner)',
             'responsibilities' => [
                 'System Controls — Mobile Money gateway, announce fee, SMS',
+                'Item & Job Approvals — Mark paid then Approve nationwide posts',
                 'Permission Controls — create District Managers, disable Moderators',
                 'Global Financial Analytics — total platform revenue',
                 'Open any District or Moderator dashboard while keeping Super Admin power',

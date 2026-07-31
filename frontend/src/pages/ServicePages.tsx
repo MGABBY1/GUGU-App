@@ -35,7 +35,7 @@ export type ServiceDef = {
 export function getGuguServices(t: (k: TranslationKey) => string): ServiceDef[] {
   return [
     {
-      ico: '?��',
+      ico: '🛒',
       labelKey: 'svc_items',
       tone: 'c-orange',
       hintKey: 'svc_items_hint',
@@ -45,14 +45,14 @@ export function getGuguServices(t: (k: TranslationKey) => string): ServiceDef[] 
       },
     },
     {
-      ico: '?��',
+      ico: '💼',
       labelKey: 'part_time_jobs',
       tone: 'c-orange',
       hintKey: 'svc_jobs_hint',
       run: ({ push }) => push('jobs'),
     },
     {
-      ico: '?��',
+      ico: '🏠',
       labelKey: 'property',
       tone: 'c-pink',
       hintKey: 'svc_property_hint',
@@ -62,7 +62,7 @@ export function getGuguServices(t: (k: TranslationKey) => string): ServiceDef[] 
       },
     },
     {
-      ico: '?��',
+      ico: '🚗',
       labelKey: 'used_cars',
       tone: 'c-blue',
       hintKey: 'svc_cars_hint',
@@ -72,21 +72,21 @@ export function getGuguServices(t: (k: TranslationKey) => string): ServiceDef[] 
       },
     },
     {
-      ico: '?��',
+      ico: '🏪',
       labelKey: 'store',
       tone: 'c-yellow',
       hintKey: 'svc_store_hint',
       run: ({ push }) => push('dashboard'),
     },
     {
-      ico: '?��',
+      ico: '👟',
       labelKey: 'neighborhood_walks',
       tone: 'c-orange',
       hintKey: 'svc_neighborhood_hint',
       run: ({ resetTo }) => resetTo('neighborhood'),
     },
     {
-      ico: '?��',
+      ico: '👕',
       labelKey: 'laundry_pickup',
       tone: 'c-teal',
       hintKey: 'svc_laundry_hint',
@@ -101,7 +101,7 @@ export function getGuguServices(t: (k: TranslationKey) => string): ServiceDef[] 
       },
     },
     {
-      ico: '?��?��',
+      ico: '🇷🇼',
       labelKey: 'svc_gugu_home',
       tone: 'c-green',
       hintKey: 'svc_gugu_hint',
@@ -189,7 +189,7 @@ export function RecentlyViewedPage() {
                       ? <img src={l.primary_image} alt="" />
                       : (
                         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem' }}>
-                          ?��
+                          📦
                         </div>
                       )}
                   </div>

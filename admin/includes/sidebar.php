@@ -14,47 +14,43 @@ $portalName = match ($role_id) {
     3 => $roles[3]['workspace'],
     default => 'Dashboard',
 };
+$base = '/gugu-app/admin/dashboard.php';
 ?>
 <aside class="sidebar">
   <div class="sidebar-brand">🇷🇼 Gura & Gurisha</div>
   <div class="sidebar-role"><?= htmlspecialchars(adminRoleLabel($role_id)) ?></div>
   <div class="sidebar-portal-name"><?= htmlspecialchars($portalName) ?></div>
   <?php if ($actualRoleId === 1 && $role_id !== 1): ?>
-    <div class="sidebar-viewing">Super Admin preview</div>
+    <div class="sidebar-viewing">Preview only · Super Admin session</div>
   <?php endif; ?>
   <nav>
     <?php if ($role_id === 1): ?>
-      <a href="/gugu-app/admin/dashboard.php#home">Dashboard</a>
-      <a href="/gugu-app/admin/dashboard.php#system-controls">System Controls</a>
-      <a href="/gugu-app/admin/dashboard.php#permissions">Permissions</a>
-      <a href="/gugu-app/admin/dashboard.php#analytics">Financials</a>
-      <a href="/gugu-app/admin/dashboard.php#dashboards">Other dashboards</a>
-      <a href="/gugu-app/admin/dashboard.php#checklist">Checklist</a>
-      <a href="/gugu-app/admin/dashboard.php#members">Members</a>
-      <a href="/gugu-app/admin/dashboard.php#payments">Payments</a>
-      <a href="/gugu-app/admin/dashboard.php#listings">Approvals</a>
-      <a href="/gugu-app/admin/dashboard.php#reports">Reports</a>
+      <a href="<?= $base ?>?pane=home">Dashboard</a>
+      <a href="<?= $base ?>?pane=listings"><strong>Item &amp; Job Approvals</strong></a>
+      <a href="<?= $base ?>?pane=payments">Fee payments</a>
+      <a href="<?= $base ?>?pane=system-controls">System Controls</a>
+      <a href="<?= $base ?>?pane=permissions">Permissions</a>
+      <a href="<?= $base ?>?pane=analytics">Financials</a>
+      <a href="<?= $base ?>?pane=checklist">Checklist</a>
+      <a href="<?= $base ?>?pane=members">Members</a>
+      <a href="<?= $base ?>?pane=reports">Reports</a>
+      <a href="<?= $base ?>?pane=id-queue">ID verification</a>
+      <a href="<?= $base ?>?pane=dashboards">Other dashboards</a>
       <a href="/gugu-app/app/">Marketplace</a>
     <?php elseif ($role_id === 2): ?>
-      <a class="active" href="/gugu-app/admin/dashboard.php">Dashboard</a>
-      <a href="/gugu-app/admin/dashboard.php#checklist">Checklist</a>
-      <a href="/gugu-app/admin/dashboard.php#users">Verify sellers</a>
-      <a href="/gugu-app/admin/dashboard.php#listings">Review Gurisha</a>
-      <a href="/gugu-app/admin/dashboard.php#reports">Local reports</a>
+      <a href="<?= $base ?>?view_role=2&amp;view_district=<?= urlencode($portal_view_district ?? '') ?>">Dashboard</a>
+      <a href="<?= $base ?>?view_role=2&amp;view_district=<?= urlencode($portal_view_district ?? '') ?>#listings">Review Gurisha</a>
       <a href="/gugu-app/app/">Marketplace</a>
     <?php elseif ($role_id === 3): ?>
-      <a class="active" href="/gugu-app/admin/dashboard.php">Dashboard</a>
-      <a href="/gugu-app/admin/dashboard.php#checklist">Checklist</a>
-      <a href="/gugu-app/admin/dashboard.php#id-queue">ID verification</a>
-      <a href="/gugu-app/admin/dashboard.php#listings">Flagged queue</a>
-      <a href="/gugu-app/admin/dashboard.php#reports">Support tickets</a>
+      <a href="<?= $base ?>?view_role=3&amp;view_district=<?= urlencode($portal_view_district ?? '') ?>">Dashboard</a>
+      <a href="<?= $base ?>?view_role=3&amp;view_district=<?= urlencode($portal_view_district ?? '') ?>#listings">Flagged queue</a>
       <a href="/gugu-app/app/">Marketplace</a>
     <?php else: ?>
       <a href="/gugu-app/app/">Marketplace</a>
     <?php endif; ?>
   </nav>
   <?php if ($actualRoleId === 1 && $role_id !== 1): ?>
-    <a class="sidebar-reset-view" href="/gugu-app/admin/dashboard.php">—Return to Super Admin</a>
+    <a class="sidebar-reset-view" href="<?= $base ?>">← Return to Super Admin</a>
   <?php endif; ?>
   <div class="sidebar-foot"><?= htmlspecialchars($nick) ?></div>
 </aside>
