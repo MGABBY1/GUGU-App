@@ -100,7 +100,7 @@ $pct = (int) round(($progressDone / $totalSteps) * 100);
         <strong>Handle open reports</strong>
         <p><?= $reports ?> open report<?= $reports === 1 ? '' : 's' ?> — resolve or dismiss if they apply.</p>
       </div>
-      <a class="btn-sm <?= $doneReports ? 'ok' : 'warn' ?>" href="#reports"><?= $doneReports ? 'No reports' : 'Open reports' ?></a>
+      <a class="btn-sm <?= $doneReports ? 'ok' : 'warn' ?>" href="?pane=reports"><?= $doneReports ? 'No reports' : 'Open reports' ?></a>
     </li>
     <?php if ($totalSteps > 6): ?>
     <li class="daily-step <?= $doneId ? 'is-done' : 'is-todo' ?>">
@@ -109,7 +109,7 @@ $pct = (int) round(($progressDone / $totalSteps) * 100);
         <strong>Review ID pending</strong>
         <p><?= $idPending ?> member ID<?= $idPending === 1 ? '' : 's' ?> waiting — Approve or Reject documents.</p>
       </div>
-      <a class="btn-sm <?= $doneId ? 'ok' : 'warn' ?>" href="#id-queue"><?= $doneId ? 'IDs clear' : 'Review IDs' ?></a>
+      <a class="btn-sm <?= $doneId ? 'ok' : 'warn' ?>" href="?pane=id-queue"><?= $doneId ? 'IDs clear' : 'Review IDs' ?></a>
     </li>
     <?php endif; ?>
   </ol>

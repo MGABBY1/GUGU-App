@@ -191,6 +191,82 @@ function adminSectionUserRow(array $u, int $selfId, array $districts, array $rol
       </div>
     </section>
 
+    <section class="panel admin-duty-list" id="admin-should-do">
+      <div class="rw-flag-bar thin" aria-hidden="true">
+        <span class="rw-blue"></span><span class="rw-yellow"></span><span class="rw-green"></span>
+      </div>
+      <span class="portal-kicker">Roles · what each Admin should do</span>
+      <h3>Admin roles in Gura &amp; Gurisha</h3>
+      <p class="admin-duty-lead">Three staff roles run the system. Members (role 4) only buy/sell in the app.</p>
+
+      <div class="admin-role-duty-grid">
+        <article class="admin-role-duty role-super">
+          <header>
+            <span class="admin-role-badge">Role 1</span>
+            <h4>System Administrator (Super Admin)</h4>
+            <p>Portal: System Control Center · Nationwide</p>
+          </header>
+          <ol>
+            <li><strong>Approve items &amp; jobs</strong> — Mark paid → Approve so posts go live.</li>
+            <li><strong>Confirm MoMo fees</strong> — <?= $fee ?> RWF per announcement · <?= htmlspecialchars(GUGU_MOMO_NUMBER) ?>.</li>
+            <li><strong>Reject spam / fakes</strong> — keep the marketplace clean.</li>
+            <li><strong>System Controls</strong> — MoMo gateway, announce fee, SMS.</li>
+            <li><strong>Permissions</strong> — create District Managers &amp; Moderators; suspend staff.</li>
+            <li><strong>Financials</strong> — track nationwide announce-fee revenue.</li>
+            <li><strong>Reports &amp; IDs</strong> — resolve reports; approve member IDs.</li>
+            <li><strong>Open other dashboards</strong> — preview District / Moderator views (you keep Super Admin power).</li>
+          </ol>
+          <div class="admin-role-actions">
+            <button type="button" class="btn-sm ok" data-open="listings">Approvals<?= $review ? ' · ' . $review : '' ?></button>
+            <button type="button" class="btn-sm" data-open="system-controls">System</button>
+            <button type="button" class="btn-sm" data-open="permissions">Staff</button>
+          </div>
+        </article>
+
+        <article class="admin-role-duty role-district">
+          <header>
+            <span class="admin-role-badge">Role 2</span>
+            <h4>District Manager</h4>
+            <p>Portal: District Operations Hub · One Akarere only</p>
+          </header>
+          <ol>
+            <li><strong>Manage your district</strong> — Gasabo, Huye, etc. only (not nationwide).</li>
+            <li><strong>Approve / reject local posts</strong> — items &amp; jobs in your Akarere.</li>
+            <li><strong>Verify local sellers</strong> — check members selling in your district.</li>
+            <li><strong>Confirm local MoMo fees</strong> — Mark paid for posts in your area.</li>
+            <li><strong>Handle local reports</strong> — disputes and flags in your district.</li>
+            <li><strong>Activate / suspend local members</strong> — when needed for trust &amp; safety.</li>
+          </ol>
+          <div class="admin-role-actions">
+            <a class="btn-sm" href="/gugu-app/admin/dashboard.php?view_role=2&amp;view_district=Gasabo">Open District view</a>
+          </div>
+        </article>
+
+        <article class="admin-role-duty role-mod">
+          <header>
+            <span class="admin-role-badge">Role 3</span>
+            <h4>Moderator / Support</h4>
+            <p>Portal: Trust &amp; Safety Desk · Flagged / support work</p>
+          </header>
+          <ol>
+            <li><strong>Review flagged posts</strong> — items/jobs marked for review.</li>
+            <li><strong>Approve, flag, or reject</strong> — spam, scams, fake announcements.</li>
+            <li><strong>Handle support tickets &amp; reports</strong> — help members; close cases.</li>
+            <li><strong>Review member IDs</strong> — Approve or Reject ID documents.</li>
+            <li><strong>Ban / suspend fraud</strong> — stop abusive or fake accounts.</li>
+          </ol>
+          <div class="admin-role-actions">
+            <a class="btn-sm" href="/gugu-app/admin/dashboard.php?view_role=3&amp;view_district=Gasabo">Open Moderator view</a>
+          </div>
+        </article>
+      </div>
+
+      <p class="admin-duty-note">
+        <strong>Member (Role 4)</strong> — browse, sell items, announce jobs, chat, apply to jobs.
+        Members never open this Admin portal.
+      </p>
+    </section>
+
     <div class="admin-group">
       <h3 class="admin-group-title">Approve posts first</h3>
       <p class="admin-group-sub">Items and Jobs wait here until you Mark paid → Approve</p>

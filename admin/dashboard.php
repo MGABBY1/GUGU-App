@@ -48,7 +48,7 @@ $bodyClass = match ($role_id) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?= htmlspecialchars($portalTitle) ?> · Gura & Gurisha</title>
-  <link rel="stylesheet" href="/gugu-app/admin/assets/admin.css?v=20260731super2">
+  <link rel="stylesheet" href="/gugu-app/admin/assets/admin.css?v=20260731roles">
 </head>
 <body class="<?= htmlspecialchars($bodyClass) ?>">
   <div class="app-layout">
