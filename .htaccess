@@ -5,6 +5,10 @@ DirectoryIndex index.php index.html
     RewriteEngine On
     RewriteBase /gugu-app/
 
+    # Keep Bearer token available to PHP
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
     # Serve built React app at /gugu-app/app/
     RewriteRule ^app/?$ public/app/index.html [L]
     RewriteRule ^app/(.*)$ public/app/$1 [L]

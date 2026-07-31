@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build / cache
+frontend/dist/
+*.tsbuildinfo
+.vite/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+config/runtime_settings.json
+
+# Uploads & local runtime
+public/uploads/*
+!public/uploads/.gitkeep
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+
+# Scratch / local-only
+_fix_brand_i18n.py
+_fix_brand_i18n2.py
+_i18n_stats.txt
+_smoke_*.php

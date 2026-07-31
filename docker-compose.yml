@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  gateway:
+    build: ./services/gateway
+    ports: ['8080:8080']
+    environment:
+      AUTH_SERVICE: http://auth-service:3001
+      LISTINGS_SERVICE: http://listings-service:3002
+      CHAT_SERVICE: http://chat-service:3003
+      USERS_SERVICE: http://users-service:3004
+    depends_on: [auth-service, listings-service, chat-service, users-service]
+
+  auth-service:
+    build: ./services/auth-service
+    environment:
+      DB_HOST: host.docker.internal
+      DB_NAME: GUGUapDB
+      DB_USER: root
+      DB_PASS: ''
+    extra_hosts: ['host.docker.internal:host-gateway']
+
+  listings-service:
+    build: ./services/listings-service
+    environment:
+      DB_HOST: host.docker.internal
+      DB_NAME: GUGUapDB
+      DB_USER: root
+      DB_PASS: ''
+    extra_hosts: ['host.docker.internal:host-gateway']
+
+  chat-service:
+    build: ./services/chat-service
+    environment:
+      DB_HOST: host.docker.internal
+      DB_NAME: GUGUapDB
+      DB_USER: root
+      DB_PASS: ''
+    extra_hosts: ['host.docker.internal:host-gateway']
+
+  users-service:
+    build: ./services/users-service
+    environment:
+      DB_HOST: host.docker.internal
+      DB_NAME: GUGUapDB
+      DB_USER: root
+      DB_PASS: ''
+    extra_hosts: ['host.docker.internal:host-gateway']
