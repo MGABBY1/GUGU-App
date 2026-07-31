@@ -76,7 +76,7 @@ function requireAuth(): array {
         jsonError('Nyamuneka winjire mbere (Please login first)', 401);
     }
     if (!empty($user['is_banned'])) {
-        jsonError('Konti yawe yahagaritswe. Vugana na GUGU support.', 403);
+        jsonError('Konti yawe yahagaritswe. Vugana na Gura & Gurisha support.', 403);
     }
     return $user;
 }

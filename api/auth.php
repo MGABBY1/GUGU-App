@@ -77,7 +77,7 @@ function register(): void {
 
     jsonResponse([
         'success' => true,
-        'message' => 'Kwiyandikisha byagenze neza! Murakaza neza kuri GUGU App',
+        'message' => 'Kwiyandikisha byagenze neza! Murakaza neza kuri Gura & Gurisha App',
         'token' => $token,
         'user' => $user
     ], 201);

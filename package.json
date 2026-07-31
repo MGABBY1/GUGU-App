@@ -2,7 +2,7 @@
   "name": "gugu-app",
   "version": "2.0.0",
   "private": true,
-  "description": "GUGU App — GuraCyangwaGurisha local marketplace for Rwanda",
+  "description": "Gura & Gurisha App — local marketplace for Rwanda",
   "scripts": {
     "install:all": "npm install --prefix frontend && npm install --prefix shared && npm install --prefix services/gateway && npm install --prefix services/auth-service && npm install --prefix services/listings-service && npm install --prefix services/chat-service && npm install --prefix services/users-service",
     "dev:frontend": "npm run dev --prefix frontend",
