@@ -252,7 +252,7 @@ function portalBusinessStream(PDO $db, string $businessType, ?string $district =
     $queue = $run("
         SELECT l.id, l.title, l.district, l.sector, l.price, l.is_free, l.moderation_status, l.payment_status,
                l.announce_fee_rwf, l.user_id, l.created_at, l.updated_at, l.category_id, l.business_type,
-               l.status, u.nickname AS seller_name, u.phone AS seller_phone
+               l.status, u.nickname AS seller_name, u.phone AS seller_phone, u.email AS seller_email
         FROM listings l
         LEFT JOIN users u ON u.id = l.user_id
         WHERE {$scopeSql} AND l.moderation_status IN (\"pending\",\"flagged\")
@@ -263,7 +263,7 @@ function portalBusinessStream(PDO $db, string $businessType, ?string $district =
     $all = $run("
         SELECT l.id, l.title, l.district, l.sector, l.price, l.is_free, l.moderation_status, l.payment_status,
                l.announce_fee_rwf, l.user_id, l.created_at, l.updated_at, l.category_id, l.business_type,
-               l.status, u.nickname AS seller_name, u.phone AS seller_phone
+               l.status, u.nickname AS seller_name, u.phone AS seller_phone, u.email AS seller_email
         FROM listings l
         LEFT JOIN users u ON u.id = l.user_id
         WHERE {$scopeSql}
@@ -361,6 +361,7 @@ function portalRenderApprovalRow(array $l, array $ctx): void {
     }
     $isLocal = $highlightDistrict !== '' && strcasecmp($rowDistrict, $highlightDistrict) === 0;
     $canAct = $actionDistrict === '' || strcasecmp($rowDistrict, $actionDistrict) === 0;
+    $sellerEmail = trim((string) ($l['seller_email'] ?? ''));
     $rowClass = [];
     if ($inQueue) {
         $rowClass[] = $payReady ? 'row-paid-ready' : 'row-unpaid';
@@ -387,6 +388,7 @@ function portalRenderApprovalRow(array $l, array $ctx): void {
           <br><small class="muted"><?= htmlspecialchars((string) $l['seller_phone']) ?></small>
         <?php endif; ?>
       </td>
+      <td class="id-cell-nowrap"><?= $sellerEmail !== '' ? htmlspecialchars($sellerEmail) : '<span class="muted">—</span>' ?></td>
       <td><?= htmlspecialchars($place) ?></td>
       <td>
         <span class="approvals-fee"><?= number_format((int) ($l['announce_fee_rwf'] ?? $fee)) ?> RWF</span>
@@ -530,7 +532,7 @@ function portalRenderBusinessApprovals(array $stream): void {
             <table class="approvals-table">
               <thead>
                 <tr>
-                  <th>ID</th><th>Title / Price</th><th>Poster</th><th>Place</th>
+                  <th>ID</th><th>Title / Price</th><th>Poster</th><th>Email</th><th>Place</th>
                   <th>Fee / Pay</th><th>Moderation</th><th>Posted</th><th>Actions</th>
                 </tr>
               </thead>
@@ -574,7 +576,7 @@ function portalRenderBusinessApprovals(array $stream): void {
             <table class="approvals-table approvals-table--all">
               <thead>
                 <tr>
-                  <th>ID</th><th>Title / Price</th><th>Poster</th><th>Place</th>
+                  <th>ID</th><th>Title / Price</th><th>Poster</th><th>Email</th><th>Place</th>
                   <th>Fee / Pay</th><th>Moderation</th><th>Status</th><th>Posted</th><th>Actions</th>
                 </tr>
               </thead>
