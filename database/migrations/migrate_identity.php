@@ -1,6 +1,6 @@
 <?php
-/** One-time identity migration ??open once: /gugu-app/database/migrations/migrate_identity.php */
-require_once __DIR__ . '/includes/db.php';
+/** One-time identity migration — open once: /gugu-app/database/migrations/migrate_identity.php */
+require_once __DIR__ . '/../../includes/db.php';
 header('Content-Type: text/plain; charset=utf-8');
 
 $db = getDB();
@@ -19,6 +19,17 @@ foreach ($alters as $col => $sql) {
     } else {
         echo "OK users.{$col}\n";
     }
+}
+try {
+    $idx = $db->query("SHOW INDEX FROM users WHERE Key_name = 'idx_users_email'")->fetchAll();
+    if (!$idx) {
+        $db->exec('CREATE INDEX idx_users_email ON users (email)');
+        echo "Added index idx_users_email\n";
+    } else {
+        echo "OK idx_users_email\n";
+    }
+} catch (Throwable $e) {
+    echo "idx_users_email: " . $e->getMessage() . "\n";
 }
 try {
     $db->exec('ALTER TABLE users MODIFY password_hash VARCHAR(255) NULL');

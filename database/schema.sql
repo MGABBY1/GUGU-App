@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS users (
     phone VARCHAR(15) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(100) NOT NULL,
+    nickname VARCHAR(50) DEFAULT NULL,
+    email VARCHAR(120) DEFAULT NULL,
     avatar VARCHAR(255) DEFAULT NULL,
     province VARCHAR(50) NOT NULL,
     district VARCHAR(50) NOT NULL,
@@ -22,7 +24,8 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_district (district),
-    INDEX idx_province (province)
+    INDEX idx_province (province),
+    INDEX idx_users_email (email)
 ) ENGINE=InnoDB;
 
 -- Categories

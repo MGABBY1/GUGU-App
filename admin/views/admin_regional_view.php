@@ -544,6 +544,7 @@ $dmNavHref = static function (string $pane) use ($navBase, $navQs): string {
             <tr>
               <th>Member</th>
               <th>Phone</th>
+              <th>Email</th>
               <th>Sector (Umurenge)</th>
               <th>ID</th>
               <th>Status</th>
@@ -581,6 +582,10 @@ $dmNavHref = static function (string $pane) use ($navBase, $navQs): string {
                 </div>
               </td>
               <td><?= htmlspecialchars((string) ($u['phone'] ?? '')) ?></td>
+              <td class="id-cell-nowrap"><?php
+                $dmEmail = trim((string) ($u['email'] ?? ''));
+                echo $dmEmail !== '' ? htmlspecialchars($dmEmail) : '<span class="muted">—</span>';
+              ?></td>
               <td>
                 <div class="dm-member-cell">
                   <?php if ($sector !== ''): ?>

@@ -881,7 +881,7 @@ function adminSectionUserRow(array $u, int $selfId, array $districts, array $rol
         <table>
           <thead>
             <tr>
-              <th>ID</th><th>Name</th><th>Phone</th><th>District</th><th>Sector</th>
+              <th>ID</th><th>Name</th><th>Phone</th><th>Email</th><th>District</th><th>Sector</th>
               <th>ID status</th><th>Status</th><th>Updated</th><th>Promote / Actions</th>
             </tr>
           </thead>
@@ -901,6 +901,10 @@ function adminSectionUserRow(array $u, int $selfId, array $districts, array $rol
                 <td>#<?= $uid ?></td>
                 <td><strong><?= htmlspecialchars($u['nickname'] ?: 'User') ?></strong></td>
                 <td><?= htmlspecialchars($u['phone']) ?></td>
+                <td><?php
+                  $memberEmail = trim((string) ($u['email'] ?? ''));
+                  echo $memberEmail !== '' ? htmlspecialchars($memberEmail) : '<span class="muted">—</span>';
+                ?></td>
                 <td><?= htmlspecialchars($u['district'] ?: '?') ?></td>
                 <td><?= htmlspecialchars($sector !== '' ? $sector : '?') ?></td>
                 <td>

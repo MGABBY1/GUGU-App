@@ -1095,7 +1095,7 @@ function portalIdVerificationData(PDO $db, ?string $district = null): array {
     $recent = [];
     try {
         $sqlQueue = "
-            SELECT id, nickname, phone, district, id_number, id_document_path, id_status, id_reject_reason, created_at, updated_at
+            SELECT id, nickname, phone, email, district, id_number, id_document_path, id_status, id_reject_reason, created_at, updated_at
             FROM users
             WHERE {$scope} AND id_status = 'pending'
             ORDER BY COALESCE(updated_at, created_at) ASC
@@ -1106,7 +1106,7 @@ function portalIdVerificationData(PDO $db, ?string $district = null): array {
         $queue = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         $sqlRecent = "
-            SELECT id, nickname, phone, district, id_number, id_document_path, id_status, id_reject_reason,
+            SELECT id, nickname, phone, email, district, id_number, id_document_path, id_status, id_reject_reason,
                    id_verified_at, updated_at, created_at
             FROM users
             WHERE {$scope} AND id_status IN ('approved','rejected')
@@ -1218,6 +1218,7 @@ function portalRenderIdVerificationQueue(array $data, string $scopeNote = 'Natio
           <tr>
             <th>Member</th>
             <th>Phone</th>
+            <th>Email</th>
             <th>ID number</th>
             <th>Document</th>
             <th>Submitted</th>
@@ -1229,6 +1230,7 @@ function portalRenderIdVerificationQueue(array $data, string $scopeNote = 'Natio
             $doc = (string) ($u['id_document_path'] ?? '');
             $docUrl = $doc !== '' ? $uploadBase . $doc : '';
             $submitted = portalFormatReviewedAt($u['updated_at'] ?? $u['created_at'] ?? null);
+            $memberEmail = trim((string) ($u['email'] ?? ''));
         ?>
           <tr>
             <td>
@@ -1236,6 +1238,7 @@ function portalRenderIdVerificationQueue(array $data, string $scopeNote = 'Natio
               <br><small class="muted">#<?= (int) $u['id'] ?> &middot; <?= htmlspecialchars($u['district'] ?: '—') ?></small>
             </td>
             <td class="id-cell-nowrap"><?= htmlspecialchars($u['phone']) ?></td>
+            <td class="id-cell-nowrap"><?= $memberEmail !== '' ? htmlspecialchars($memberEmail) : '<span class="muted">—</span>' ?></td>
             <td><code class="id-number-code"><?= htmlspecialchars($u['id_number'] ?: '—') ?></code></td>
             <td class="id-doc-cell">
               <?php if ($docUrl !== ''): ?>
@@ -1288,6 +1291,7 @@ function portalRenderIdVerificationQueue(array $data, string $scopeNote = 'Natio
           <tr>
             <th>Member</th>
             <th>Phone</th>
+            <th>Email</th>
             <th>ID number</th>
             <th>Status</th>
             <th>Document</th>
@@ -1301,6 +1305,7 @@ function portalRenderIdVerificationQueue(array $data, string $scopeNote = 'Natio
             $docUrl = $doc !== '' ? $uploadBase . $doc : '';
             $pillClass = $st === 'approved' ? 'status-pill status-ok' : 'status-pill status-bad';
             $reviewedAt = portalFormatReviewedAt($u['id_verified_at'] ?? $u['updated_at'] ?? null);
+            $memberEmail = trim((string) ($u['email'] ?? ''));
         ?>
           <tr>
             <td>
@@ -1308,6 +1313,7 @@ function portalRenderIdVerificationQueue(array $data, string $scopeNote = 'Natio
               <br><small class="muted">#<?= (int) $u['id'] ?> &middot; <?= htmlspecialchars($u['district'] ?: '—') ?></small>
             </td>
             <td class="id-cell-nowrap"><?= htmlspecialchars($u['phone']) ?></td>
+            <td class="id-cell-nowrap"><?= $memberEmail !== '' ? htmlspecialchars($memberEmail) : '<span class="muted">—</span>' ?></td>
             <td><code class="id-number-code"><?= htmlspecialchars($u['id_number'] ?: '—') ?></code></td>
             <td>
               <span class="<?= $pillClass ?>"><?= htmlspecialchars(portalIdStatusLabel($st)) ?></span>
