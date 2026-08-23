@@ -15,47 +15,51 @@ $action = $_GET['action'] ?? '';
 
 switch ($action) {
     case 'register':
-        if ($method !== 'POST') jsonError('Method not allowed', 405);
+        if ($method !== 'POST') jsonErrorKey('method_not_allowed', 405);
         register();
         break;
     case 'login':
-        if ($method !== 'POST') jsonError('Method not allowed', 405);
+        if ($method !== 'POST') jsonErrorKey('method_not_allowed', 405);
         login();
         break;
     case 'send-otp':
-        if ($method !== 'POST') jsonError('Method not allowed', 405);
+        if ($method !== 'POST') jsonErrorKey('method_not_allowed', 405);
         sendOtp();
         break;
+    case 'confirm-otp':
+        if ($method !== 'POST') jsonErrorKey('method_not_allowed', 405);
+        confirmOtp();
+        break;
     case 'verify-otp':
-        if ($method !== 'POST') jsonError('Method not allowed', 405);
+        if ($method !== 'POST') jsonErrorKey('method_not_allowed', 405);
         verifyOtp();
         break;
     case 'complete-profile':
-        if ($method !== 'POST') jsonError('Method not allowed', 405);
+        if ($method !== 'POST') jsonErrorKey('method_not_allowed', 405);
         completeProfile();
         break;
     case 'verify-location':
-        if ($method !== 'POST') jsonError('Method not allowed', 405);
+        if ($method !== 'POST') jsonErrorKey('method_not_allowed', 405);
         verifyLocation();
         break;
     case 'submit-id':
-        if ($method !== 'POST') jsonError('Method not allowed', 405);
+        if ($method !== 'POST') jsonErrorKey('method_not_allowed', 405);
         submitId();
         break;
     case 'open-staff-portal':
-        if ($method !== 'POST') jsonError('Method not allowed', 405);
+        if ($method !== 'POST') jsonErrorKey('method_not_allowed', 405);
         openStaffPortal();
         break;
     case 'logout':
-        if ($method !== 'POST') jsonError('Method not allowed', 405);
+        if ($method !== 'POST') jsonErrorKey('method_not_allowed', 405);
         logout();
         break;
     case 'me':
-        if ($method !== 'GET') jsonError('Method not allowed', 405);
+        if ($method !== 'GET') jsonErrorKey('method_not_allowed', 405);
         me();
         break;
     default:
-        jsonError('Invalid action', 404);
+        jsonErrorKey('invalid_action', 404);
 }
 
 function publicUser(array $user): array {
@@ -89,6 +93,7 @@ function authPayload(array $user, string $token, string $message = 'Murakaza nez
         'user' => $user,
         'needs_profile' => !empty($user['needs_profile']),
         'needs_location' => !empty($user['needs_location']),
+        'needs_id_upload' => !empty($user['needs_id_upload']),
         'needs_id_verification' => !empty($user['needs_id_verification']),
         'is_staff' => isStaffRoleId($roleId),
     ];
@@ -102,22 +107,29 @@ function sendOtp(): void {
     $data = getJsonInput();
     $phone = formatPhone($data['phone'] ?? '');
     if (!validateRwandaPhone($phone)) {
-        jsonError('Nomero ya telefoni ntabwo ari yo');
+        jsonErrorKey('phone_invalid');
     }
 
-    $code = str_pad((string) random_int(0, 999999), OTP_LENGTH, '0', STR_PAD_LEFT);
-    $expires = date('Y-m-d H:i:s', time() + OTP_TTL_SECONDS);
+    $purpose = trim((string) ($data['purpose'] ?? 'login'));
+    if (!in_array($purpose, ['login', 'register', 'verify'], true)) {
+        $purpose = 'login';
+    }
+
+    $len = defined('OTP_LENGTH') ? (int) OTP_LENGTH : 6;
+    $ttl = defined('OTP_TTL_SECONDS') ? (int) OTP_TTL_SECONDS : 300;
+    $code = str_pad((string) random_int(0, (10 ** $len) - 1), $len, '0', STR_PAD_LEFT);
     $db = getDB();
     $db->prepare('UPDATE otp_codes SET used_at = NOW() WHERE phone = ? AND used_at IS NULL')->execute([$phone]);
+    // Use MySQL clock so expires_at matches expires_at > NOW() checks.
     $db->prepare('
         INSERT INTO otp_codes (phone, code, purpose, attempts, expires_at)
-        VALUES (?, ?, "login", 0, ?)
-    ')->execute([$phone, $code, $expires]);
+        VALUES (?, ?, ?, 0, DATE_ADD(NOW(), INTERVAL ? SECOND))
+    ')->execute([$phone, $code, $purpose, $ttl]);
 
     $out = [
         'success' => true,
         'phone' => $phone,
-        'expires_in' => OTP_TTL_SECONDS,
+        'expires_in' => $ttl,
         'message' => 'OTP yoherejwe',
     ];
     if (defined('OTP_DEV_MODE') && OTP_DEV_MODE) {
@@ -127,44 +139,62 @@ function sendOtp(): void {
     jsonResponse($out);
 }
 
+/**
+ * Validate OTP for registration without creating a user.
+ * Marks a short-lived session proof so register() does not re-fail on expiry.
+ */
+function confirmOtp(): void {
+    $data = getJsonInput();
+    $phone = formatPhone($data['phone'] ?? '');
+    $code = (string) ($data['code'] ?? $data['otp'] ?? '');
+    if (!validateRwandaPhone($phone)) {
+        jsonErrorKey('phone_invalid');
+    }
+
+    $row = findActiveOtp($phone);
+    assertOtpMatches($row, $code);
+
+    // Keep OTP usable for the details form, but give more time after successful check.
+    getDB()->prepare('
+        UPDATE otp_codes
+        SET expires_at = DATE_ADD(NOW(), INTERVAL 15 MINUTE), attempts = 0
+        WHERE id = ?
+    ')->execute([(int) $row['id']]);
+
+    startAppSession();
+    $_SESSION['register_otp_phone'] = $phone;
+    $_SESSION['register_otp_code'] = normalizeOtp($code);
+    $_SESSION['register_otp_at'] = time();
+
+    jsonResponse([
+        'success' => true,
+        'phone' => $phone,
+        'message' => 'OTP yemejwe',
+    ]);
+}
+
 function verifyOtp(): void {
     $data = getJsonInput();
     $phone = formatPhone($data['phone'] ?? '');
-    $code = trim((string) ($data['code'] ?? ''));
-    if (!validateRwandaPhone($phone) || $code === '') {
-        jsonError('OTP ntabwo ari yo');
+    $code = (string) ($data['code'] ?? '');
+    if (!validateRwandaPhone($phone) || normalizeOtp($code) === '') {
+        jsonErrorKey('otp_invalid');
     }
 
-    $db = getDB();
-    $stmt = $db->prepare('
-        SELECT * FROM otp_codes
-        WHERE phone = ? AND used_at IS NULL AND expires_at > NOW()
-        ORDER BY id DESC LIMIT 1
-    ');
-    $stmt->execute([$phone]);
-    $otp = $stmt->fetch();
-    if (!$otp) {
-        jsonError('OTP yarangiye — saba indi', 401);
-    }
-    if ((int) $otp['attempts'] >= OTP_MAX_ATTEMPTS) {
-        jsonError('OTP yarangiye — saba indi', 401);
-    }
-    if (!hash_equals((string) $otp['code'], $code)) {
-        $db->prepare('UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ?')->execute([(int) $otp['id']]);
-        jsonError('OTP ntabwo ari yo', 401);
-    }
-    $db->prepare('UPDATE otp_codes SET used_at = NOW() WHERE id = ?')->execute([(int) $otp['id']]);
+    $otp = findActiveOtp($phone);
+    assertOtpMatches($otp, $code);
+    markOtpUsed((int) $otp['id']);
 
-    $stmt = $db->prepare('SELECT * FROM users WHERE phone = ?');
+    $stmt = getDB()->prepare('SELECT * FROM users WHERE phone = ?');
     $stmt->execute([$phone]);
     $user = $stmt->fetch();
     $isNew = false;
     if (!$user) {
-        $db->prepare('
+        getDB()->prepare('
             INSERT INTO users (phone, password_hash, nickname, role_id, account_kind, account_status, is_verified)
             VALUES (?, NULL, "", 4, "member", "active", 1)
         ')->execute([$phone, password_hash(bin2hex(random_bytes(8)), PASSWORD_DEFAULT)]);
-        $user = fetchUserById((int) $db->lastInsertId());
+        $user = fetchUserById((int) getDB()->lastInsertId());
         $isNew = true;
     }
 
@@ -183,10 +213,10 @@ function login(): void {
     $password = (string) ($data['password'] ?? '');
 
     if (!validateRwandaPhone($phone)) {
-        jsonError('Nomero ya telefoni ntabwo ari yo');
+        jsonErrorKey('phone_invalid');
     }
     if ($password === '') {
-        jsonError('Andika ijambo ry\'ibanga cyangwa OTP');
+        jsonErrorKey('password_or_otp');
     }
 
     $db = getDB();
@@ -195,10 +225,10 @@ function login(): void {
     $user = $stmt->fetch();
 
     if (!$user || empty($user['password_hash']) || !password_verify($password, $user['password_hash'])) {
-        jsonError('Nomero cyangwa ijambo ry\'ibanga ntabwo ari byo', 401);
+        jsonErrorKey('login_failed', 401);
     }
     if (($user['account_status'] ?? 'active') !== 'active' || !empty($user['is_banned'])) {
-        jsonError('Konti yawe yahagaritswe', 403);
+        jsonErrorKey('account_suspended', 403);
     }
 
     $token = createSession((int) $user['id']);
@@ -212,19 +242,32 @@ function openStaffPortal(): void {
     $user = requireAuth();
     $roleId = (int) ($user['role_id'] ?? 4);
     if (!isStaffRoleId($roleId)) {
-        jsonError('Staff portal for management accounts only', 403);
+        jsonErrorKey('staff_portal_only', 403);
     }
     startStaffPhpSession($user);
     $labels = [
-        1 => 'System Administrator',
+        1 => 'Admin',
         2 => 'District Manager',
         3 => 'Moderator / Support',
     ];
+    $redirect = '/gugu-app/admin/dashboard.php';
+    $preview = stickyPortalViewForUser($user);
+    if ($preview !== null) {
+        $qs = ['view_role' => (string) $preview['role']];
+        if ($preview['district'] !== '') {
+            $qs['view_district'] = $preview['district'];
+        }
+        $redirect .= '?' . http_build_query($qs);
+    }
     jsonResponse([
         'success' => true,
-        'redirect' => '/gugu-app/admin/dashboard.php',
+        'redirect' => $redirect,
         'role_id' => $roleId,
         'role_name' => $labels[$roleId] ?? 'Staff',
+        'is_admin' => $roleId === 1,
+        'can_manage_staff' => $roleId === 1,
+        'can_system_controls' => $roleId === 1,
+        'portal_view' => $preview,
     ]);
 }
 
@@ -239,7 +282,7 @@ function completeProfile(): void {
     $sector = trim((string) ($data['sector'] ?? ''));
 
     if ($nickname === '' || $province === '' || $district === '') {
-        jsonError('Uzuza nickname, intara n\'akarere');
+        jsonErrorKey('fill_nickname_district');
     }
 
     getDB()->prepare('
@@ -276,7 +319,7 @@ function verifyLocation(): void {
     // Rwanda rough bounds
     $inRwanda = $lat >= -2.9 && $lat <= -1.0 && $lng >= 28.8 && $lng <= 30.9;
     if (!$inRwanda && $district === '') {
-        jsonError('Location must be in Rwanda');
+        jsonErrorKey('location_rwanda');
     }
 
     getDB()->prepare('
@@ -309,15 +352,15 @@ function submitId(): void {
     $user = requireAuth();
     $idNumber = trim((string) ($_POST['id_number'] ?? ''));
     if ($idNumber === '') {
-        jsonError('Andika numero y\'indangamuntu');
+        jsonErrorKey('id_number_required');
     }
     if (empty($_FILES['id_document']) && empty($_FILES['document'])) {
-        jsonError('Shyiramo ifoto y\'indangamuntu');
+        jsonErrorKey('id_photo_required');
     }
     $file = $_FILES['id_document'] ?? $_FILES['document'];
     $path = handleImageUpload($file);
     if (!$path) {
-        jsonError('Ifoto ntabwo yemewe');
+        jsonErrorKey('id_photo_invalid');
     }
 
     getDB()->prepare('
@@ -326,11 +369,12 @@ function submitId(): void {
     ')->execute([$idNumber, $path, (int) $user['id']]);
 
     $fresh = fetchUserById((int) $user['id']);
+    $public = publicUser($fresh);
     jsonResponse([
         'success' => true,
         'message' => 'ID yoherejwe — tegereza approval',
-        'user' => publicUser($fresh),
-        'needs_id_verification' => true,
+        'user' => $public,
+        'needs_id_verification' => !empty($public['needs_id_verification']),
     ]);
 }
 
@@ -338,48 +382,69 @@ function register(): void {
     $data = getJsonInput();
     $phone = formatPhone($data['phone'] ?? '');
     $password = (string) ($data['password'] ?? '');
-    $otp = trim((string) ($data['otp'] ?? ''));
+    $otp = normalizeOtp((string) ($data['otp'] ?? ''));
     $fullName = trim((string) ($data['full_name'] ?? $data['nickname'] ?? ''));
+    $nickname = trim((string) ($data['nickname'] ?? ''));
+    if ($nickname === '') {
+        $nickname = $fullName !== '' ? explode(' ', $fullName)[0] : '';
+    }
+    $email = trim((string) ($data['email'] ?? ''));
     $province = trim((string) ($data['province'] ?? ''));
     $district = trim((string) ($data['district'] ?? ''));
     $sector = trim((string) ($data['sector'] ?? ''));
 
     if (!validateRwandaPhone($phone)) {
-        jsonError('Nomero ya telefoni ntabwo ari yo (+2507XXXXXXXX)');
+        jsonErrorKey('phone_invalid_format');
     }
     if (strlen($password) < 6) {
-        jsonError('Ijambo ry\'ibanga rigomba kuba nibura inyuguti 6');
+        jsonErrorKey('password_short');
     }
     if ($fullName === '' || $province === '' || $district === '') {
-        jsonError('Uzuza amakuru yose');
+        jsonErrorKey('fill_all');
     }
 
     $db = getDB();
-    if ($otp !== '') {
-        $stmt = $db->prepare('
-            SELECT * FROM otp_codes
-            WHERE phone = ? AND used_at IS NULL AND expires_at > NOW()
-            ORDER BY id DESC LIMIT 1
-        ');
-        $stmt->execute([$phone]);
-        $row = $stmt->fetch();
-        if (!$row || !hash_equals((string) $row['code'], $otp)) {
-            jsonError('OTP ntabwo ari yo', 401);
+    startAppSession();
+    $sessionOk = isset($_SESSION['register_otp_phone'], $_SESSION['register_otp_at'])
+        && (string) $_SESSION['register_otp_phone'] === $phone
+        && (time() - (int) $_SESSION['register_otp_at']) <= 900;
+
+    if ($sessionOk) {
+        // OTP already confirmed on previous step — consume any leftover unused code.
+        $row = findActiveOtp($phone);
+        if ($row) {
+            markOtpUsed((int) $row['id']);
         }
-        $db->prepare('UPDATE otp_codes SET used_at = NOW() WHERE id = ?')->execute([(int) $row['id']]);
+    } else {
+        if ($otp === '') {
+            jsonErrorKey('otp_invalid', 401);
+        }
+        $row = findActiveOtp($phone);
+        assertOtpMatches($row, $otp);
+        markOtpUsed((int) $row['id']);
     }
+    unset($_SESSION['register_otp_phone'], $_SESSION['register_otp_code'], $_SESSION['register_otp_at']);
 
     $stmt = $db->prepare('SELECT id FROM users WHERE phone = ?');
     $stmt->execute([$phone]);
     if ($stmt->fetch()) {
-        jsonError('Iyi nomero ya telefoni isanzwe ikoreshwa');
+        jsonErrorKey('phone_taken');
     }
 
     $hash = password_hash($password, PASSWORD_DEFAULT);
     $db->prepare('
-        INSERT INTO users (phone, password_hash, full_name, nickname, province, district, sector, role_id, account_kind, account_status, is_verified)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 4, "member", "active", 1)
-    ')->execute([$phone, $hash, $fullName, $fullName, $province, $district, $sector ?: null]);
+        INSERT INTO users (phone, password_hash, full_name, nickname, email, province, district, sector, role_id, account_kind, account_status, is_verified)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 4, "member", "active", 1)
+    ')->execute([
+        $phone,
+        $hash,
+        $fullName,
+        $nickname,
+        $email !== '' ? $email : null,
+        $province,
+        $district,
+        $sector !== '' ? $sector : null,
+    ]);
 
     $userId = (int) $db->lastInsertId();
     $token = createSession($userId);

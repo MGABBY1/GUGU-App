@@ -122,7 +122,7 @@ export function LocationSheet({ open, onClose, onSaved }: Props) {
         <div className="loc-sheet-handle" />
         <header className="loc-sheet-head">
           <h2>{t('gps_title')}</h2>
-          <button type="button" className="loc-sheet-close" onClick={onClose} aria-label="Close">×</button>
+          <button type="button" className="loc-sheet-close" onClick={onClose} aria-label={t('close')}>×</button>
         </header>
         <p className="loc-sheet-hint">{t('change_stay_hint')}</p>
 
@@ -178,13 +178,13 @@ export function LocationSheet({ open, onClose, onSaved }: Props) {
               ))}
             </select>
 
-            <label>{t('sector')} (Umurenge)</label>
+            <label>{t('sector')}</label>
             {sectorOptions.length > 0 ? (
               <select value={sector} onChange={e => setSector(e.target.value)}>
                 {sectorOptions.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             ) : (
-              <input value={sector} onChange={e => setSector(e.target.value)} placeholder="Umurenge" />
+              <input value={sector} onChange={e => setSector(e.target.value)} placeholder={t('sector_placeholder')} />
             )}
 
             <button type="button" className="seed-btn seed-btn-carrot seed-btn-block" disabled={loading} onClick={save}>

@@ -14,7 +14,7 @@ define('APP_TAGLINE', 'Gura no kugurisha mu Rwanda');
 define('APP_URL', 'http://localhost/gugu-app');
 define('UPLOAD_DIR', __DIR__ . '/../public/uploads/');
 define('UPLOAD_URL', '/gugu-app/public/uploads/');
-define('MAX_UPLOAD_SIZE', 5 * 1024 * 1024); // 5MB
+define('MAX_UPLOAD_SIZE', 12 * 1024 * 1024); // 12MB (phone photos)
 define('SESSION_LIFETIME', 60 * 60 * 24 * 30); // 30 days
 
 /** OTP / SMS — set OTP_DEV_MODE false + SMS_API_KEY when using real SMS (Africa's Talking, Twilio) */

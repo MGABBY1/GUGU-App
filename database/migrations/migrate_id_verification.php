@@ -1,7 +1,7 @@
 <?php
 /**
  * Member ID verification columns (NIDA / national ID + document).
- * Run: http://localhost/gugu-app/migrate_id_verification.php
+ * Run: http://localhost/gugu-app/database/migrations/migrate_id_verification.php
  */
 require_once __DIR__ . '/includes/helpers.php';
 

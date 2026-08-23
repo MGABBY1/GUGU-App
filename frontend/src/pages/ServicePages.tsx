@@ -8,6 +8,7 @@ import { formatTrustScore } from '../i18n/format';
 import { setHomeFilter, getRecentViews, clearRecentViews, RecentItem } from '../data/services';
 import type { TranslationKey } from '../i18n/translations';
 import { BRAND_NAME } from '../i18n/translations';
+import { identityTitle, identityPlace } from '../api/client';
 
 /** Category ids from schema */
 export const CAT = {
@@ -216,7 +217,8 @@ export function BenefitsPage() {
   const { t } = useLang();
   const [locOpen, setLocOpen] = useState(false);
   const trust = formatTrustScore(user?.manner_score);
-  const place = [user?.sector, user?.district].filter(Boolean).join(', ');
+  const place = identityPlace(user) || [user?.sector, user?.district].filter(Boolean).join(', ');
+  const title = identityTitle(user) || user?.nickname || BRAND_NAME;
 
   const perks = [
     { ico: '⭐', title: t('benefit_trust'), desc: t('benefit_trust_desc') },
@@ -231,7 +233,7 @@ export function BenefitsPage() {
       <div className="stack-content svc-benefits">
         <div className="svc-benefits-hero">
           <div className="svc-benefits-temp">{trust}</div>
-          <h2>{user?.nickname || BRAND_NAME}</h2>
+          <h2>{title}</h2>
           <p>{place || t('set_neighbourhood')}</p>
           {user?.location_ok
             ? <span className="svc-pill ok">{t('gps_ok')}</span>

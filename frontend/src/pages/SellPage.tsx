@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth, toast } from '../components/AuthContext';
 import { useStack } from '../stack/Stackflow';
-import { api, Category, CATEGORY_ICONS, goToItemsPage } from '../api/client';
+import { api, Category, CATEGORY_ICONS, goToItemsPage, hasApprovedId } from '../api/client';
 import { Header } from '../components/BottomNav';
 import { provinceForDistrict, sectorsForDistrict } from '../data/rwanda';
 import { useLang } from '../i18n/LanguageContext';
+import { prepareListingImages } from '../utils/prepareImages';
 
 /** Item categories for Post an item (excludes All=1; Jobs is a separate tile → post-job) */
 const SELL_CATEGORIES_FALLBACK: Category[] = [
@@ -93,6 +94,10 @@ export default function SellPage() {
   };
 
   const validate = () => {
+    if (images.length < 1) {
+      toast(t('photos_required'), 'error');
+      return false;
+    }
     if (!form.title.trim()) {
       toast(t('fill_title'), 'error');
       return false;
@@ -119,6 +124,13 @@ export default function SellPage() {
       push('auth');
       return false;
     }
+    if (!hasApprovedId(user)) {
+      toast(t('id_required_to_sell'), 'error');
+      sessionStorage.setItem('gugu_auth_step', 'id');
+      sessionStorage.setItem('gugu_after_login', 'sell');
+      resetTo('auth');
+      return false;
+    }
     return true;
   };
 
@@ -130,6 +142,13 @@ export default function SellPage() {
     const sector = form.sector || pickSector(form.district);
     setLoading(true);
 
+    let prepared: File[] = images;
+    try {
+      prepared = await prepareListingImages(images);
+    } catch {
+      prepared = images;
+    }
+
     const fd = new FormData();
     fd.append('title', form.title.trim());
     fd.append('description', form.description.trim());
@@ -140,13 +159,18 @@ export default function SellPage() {
     fd.append('district', form.district);
     fd.append('sector', sector);
     fd.append('fee_acknowledged', '1');
-    images.forEach(f => fd.append('images[]', f));
+    prepared.forEach((f, i) => {
+      fd.append('images[]', f, f.name || `photo_${i + 1}.jpg`);
+    });
 
     try {
       const res = await api.createListing(fd);
+      if (!res.image_count && res.pending_approval !== false) {
+        /* server enforces photos for items */
+      }
       if (res.pending_approval) {
         toast(res.message || t('pending_after_pay'), 'success');
-        resetTo('profile');
+        resetTo('my-listings');
       } else {
         toast(t('listed_toast'), 'success');
         goToItemsPage();
@@ -179,7 +203,7 @@ export default function SellPage() {
                   <img src={URL.createObjectURL(f)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   {i === 0 && (
                     <span style={{ position: 'absolute', bottom: 4, left: 4, background: 'var(--seed-carrot)', color: 'white', fontSize: '0.6rem', padding: '2px 6px', borderRadius: 4 }}>
-                      Cover
+                      {t('cover_photo')}
                     </span>
                   )}
                   <button
@@ -195,7 +219,7 @@ export default function SellPage() {
                 <label style={{ aspectRatio: 1, border: '2px dashed var(--seed-gray-200)', borderRadius: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--seed-gray-500)', fontSize: '0.75rem' }}>
                   <span style={{ fontSize: '1.5rem' }}>+</span>
                   {t('add_photo')}
-                  <input type="file" accept="image/*" multiple hidden onChange={addImages} />
+                  <input type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.heic,.heif" multiple hidden onChange={addImages} />
                 </label>
               )}
             </div>
@@ -209,7 +233,7 @@ export default function SellPage() {
                 className="seed-input"
                 value={form.title}
                 onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                placeholder="iPhone 13, Sofa..."
+                placeholder={t('title_placeholder')}
                 maxLength={150}
               />
             </div>
@@ -247,7 +271,7 @@ export default function SellPage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', marginBottom: 12 }}>
               <div>
-                <div style={{ fontWeight: 600 }}>🎁 Ubuntu</div>
+                <div style={{ fontWeight: 600 }}>🎁 {t('free_give')}</div>
                 <div style={{ fontSize: '0.8125rem', color: 'var(--seed-gray-600)' }}>{t('free_give')}</div>
               </div>
               <button
@@ -310,7 +334,7 @@ export default function SellPage() {
               </p>
             </div>
             <div className="seed-field">
-              <label>{t('sector')} (Umurenge)</label>
+              <label>{t('sector')}</label>
               <select
                 className="seed-input"
                 value={form.sector}

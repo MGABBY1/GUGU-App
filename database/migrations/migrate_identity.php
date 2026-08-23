@@ -1,5 +1,5 @@
 <?php
-/** One-time identity migration — open once: /gugu-app/migrate_identity.php */
+/** One-time identity migration ??open once: /gugu-app/database/migrations/migrate_identity.php */
 require_once __DIR__ . '/includes/db.php';
 header('Content-Type: text/plain; charset=utf-8');
 
@@ -42,4 +42,4 @@ $db->exec("
 echo "OK otp_codes\n";
 $db->exec("UPDATE users SET nickname = SUBSTRING_INDEX(full_name, ' ', 1) WHERE nickname IS NULL OR nickname = ''");
 echo "OK nickname backfill\n";
-echo "DONE — open http://localhost/gugu-app/\n";
+echo "DONE ??open http://localhost/gugu-app/\n";

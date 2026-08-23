@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useStack } from '../stack/Stackflow';
 import { useAuth, toast } from '../components/AuthContext';
-import { api, Listing } from '../api/client';
+import { api, Listing, hasApprovedId, isMemberUser } from '../api/client';
 import { Header } from '../components/BottomNav';
 import { useLang } from '../i18n/LanguageContext';
 import { BRAND_NAME } from '../i18n/translations';
 import { JOBS_CATEGORY_ID } from '../data/services';
-import { isMemberUser } from '../api/client';
 
 /** Jobs hub — announcements stay in Available jobs (not Items marketplace) */
 export function JobsPage() {
@@ -54,6 +53,13 @@ export function JobsPage() {
       resetTo('auth');
       return;
     }
+    if (!hasApprovedId(user)) {
+      toast(t('id_required_to_sell'), 'error');
+      sessionStorage.setItem('gugu_auth_step', 'id');
+      sessionStorage.setItem('gugu_after_login', 'post-job');
+      resetTo('auth');
+      return;
+    }
     push('post-job');
   };
 
@@ -77,7 +83,7 @@ export function JobsPage() {
                 <i style={{ background: '#20603D' }} />
               </span>
               <strong>{BRAND_NAME}</strong>
-              <em>Jobs</em>
+              <em>{t('jobs_brand_em')}</em>
             </div>
             <div>
               <h2>{t('jobs_hero')}</h2>
@@ -202,15 +208,28 @@ export function PostJobPage() {
       resetTo('auth');
       return;
     }
+    if (!hasApprovedId(user)) {
+      toast(t('id_required_to_sell'), 'error');
+      sessionStorage.setItem('gugu_auth_step', 'id');
+      sessionStorage.setItem('gugu_after_login', 'post-job');
+      resetTo('auth');
+      return;
+    }
     api.announceFee().then(d => setFee({
       fee_rwf: d.fee_rwf || 1000,
       momo_number: d.momo_number || '0780000000',
       momo_name: d.momo_name || 'Gura & Gurisha Admin',
     })).catch(() => {});
-  }, [isAuthed]);
+  }, [isAuthed, user]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!hasApprovedId(user)) {
+      toast(t('id_required_to_sell'), 'error');
+      sessionStorage.setItem('gugu_auth_step', 'id');
+      resetTo('auth');
+      return;
+    }
     if (!form.title.trim()) {
       toast(t('fill_job_title'), 'error');
       return;
@@ -300,7 +319,7 @@ export function PostJobPage() {
           <input value={form.district} readOnly required />
           <p style={{ fontSize: 12, color: 'var(--seed-gray-600)' }}>{t('post_locked_district')}</p>
 
-          <label>{t('sector')} (Umurenge)</label>
+          <label>{t('sector')}</label>
           <input
             value={form.sector}
             onChange={e => setForm(f => ({ ...f, sector: e.target.value }))}

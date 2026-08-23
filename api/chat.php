@@ -45,7 +45,7 @@ function getRooms(): void {
     $sql = "
         SELECT cr.*, 
                l.title as listing_title, l.price, l.status as listing_status, l.category_id,
-               (SELECT image_path FROM listing_images WHERE listing_id = l.id AND is_primary = 1 LIMIT 1) as listing_image,
+               (SELECT image_path FROM listing_images WHERE listing_id = l.id ORDER BY is_primary DESC, sort_order ASC, id ASC LIMIT 1) as listing_image,
                CASE WHEN cr.buyer_id = ? THEN COALESCE(NULLIF(seller.nickname, ''), seller.full_name)
                     ELSE COALESCE(NULLIF(buyer.nickname, ''), buyer.full_name) END as other_name,
                CASE WHEN cr.buyer_id = ? THEN seller.avatar ELSE buyer.avatar END as other_avatar,
@@ -72,7 +72,7 @@ function getRooms(): void {
     foreach ($rooms as &$room) {
         $room['price_formatted'] = formatPrice((int) $room['price']);
         if ($room['listing_image']) {
-            $room['listing_image'] = UPLOAD_URL . $room['listing_image'];
+            $room['listing_image'] = publicUploadUrl($room['listing_image']);
         }
         $room['time_ago'] = timeAgo($room['last_message_at']);
         $isJob = (int) ($room['category_id'] ?? 0) === 11;
@@ -169,7 +169,7 @@ function getMessages(int $roomId): void {
     $stmt = $db->prepare("
         SELECT cr.*,
                l.title as listing_title, l.price, l.status as listing_status, l.category_id,
-               (SELECT image_path FROM listing_images WHERE listing_id = l.id AND is_primary = 1 LIMIT 1) as listing_image,
+               (SELECT image_path FROM listing_images WHERE listing_id = l.id ORDER BY is_primary DESC, sort_order ASC, id ASC LIMIT 1) as listing_image,
                CASE WHEN cr.buyer_id = ? THEN COALESCE(NULLIF(seller.nickname, ''), seller.full_name)
                     ELSE COALESCE(NULLIF(buyer.nickname, ''), buyer.full_name) END as other_name,
                CASE WHEN cr.buyer_id = ? THEN seller.avatar ELSE buyer.avatar END as other_avatar
@@ -185,7 +185,7 @@ function getMessages(int $roomId): void {
     if (!$room) jsonError('Ubutumwa ntibubonetse', 404);
 
     if ($room['listing_image']) {
-        $room['listing_image'] = UPLOAD_URL . $room['listing_image'];
+        $room['listing_image'] = publicUploadUrl($room['listing_image']);
     }
     $isJob = (int) ($room['category_id'] ?? 0) === 11;
     $isApplicant = ((int) $room['buyer_id'] === (int) $uid);
@@ -210,10 +210,12 @@ function getMessages(int $roomId): void {
     $messages = $stmt->fetchAll();
 
     foreach ($messages as &$msg) {
-        $msg['is_mine'] = $msg['sender_id'] == $user['id'];
+        $msg['is_mine'] = ((int) $msg['sender_id'] === (int) $user['id']);
+        $msg['is_read'] = (int) ($msg['is_read'] ?? 0);
         $msg['time_ago'] = timeAgo($msg['created_at']);
         $msg['sender_name'] = $msg['sender_nickname'] ?: $msg['sender_name'];
     }
+    unset($msg);
 
     jsonResponse(['success' => true, 'room' => $room, 'messages' => $messages]);
 }
@@ -223,17 +225,35 @@ function sendMessage(int $roomId): void {
     $data = getJsonInput();
     $content = trim($data['content'] ?? '');
 
-    if (empty($content)) jsonError('Ubutumwa ntibushobora kuba ubusa');
+    if ($content === '') {
+        jsonErrorKey('fill_all');
+    }
 
     $db = getDB();
     $stmt = $db->prepare('SELECT * FROM chat_rooms WHERE id = ? AND (buyer_id = ? OR seller_id = ?)');
     $stmt->execute([$roomId, $user['id'], $user['id']]);
-    if (!$stmt->fetch()) jsonError('Ubutumwa ntibubonetse', 404);
+    if (!$stmt->fetch()) {
+        jsonErrorKey('generic_error', 404);
+    }
 
-    $db->prepare('INSERT INTO messages (room_id, sender_id, content) VALUES (?, ?, ?)')
+    $db->prepare('INSERT INTO messages (room_id, sender_id, content, is_read) VALUES (?, ?, ?, 0)')
        ->execute([$roomId, $user['id'], $content]);
+    $msgId = (int) $db->lastInsertId();
 
     $db->prepare('UPDATE chat_rooms SET last_message_at = NOW() WHERE id = ?')->execute([$roomId]);
 
-    jsonResponse(['success' => true, 'message' => 'Ubutumwa bwoherejwe'], 201);
+    $createdAt = date('Y-m-d H:i:s');
+    jsonResponse([
+        'success' => true,
+        'message' => [
+            'id' => $msgId,
+            'room_id' => $roomId,
+            'sender_id' => (int) $user['id'],
+            'content' => $content,
+            'is_read' => 0,
+            'is_mine' => true,
+            'created_at' => $createdAt,
+            'time_ago' => timeAgo($createdAt),
+        ],
+    ], 201);
 }

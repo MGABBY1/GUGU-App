@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useAuth, toast } from '../components/AuthContext';
 import { useStack } from '../stack/Stackflow';
-import { api, goToItemsPage, isStaffUser, roleLabel, User } from '../api/client';
+import { api, goToItemsPage, isStaffUser, needsIdUpload, User } from '../api/client';
 import { RWANDA_PROVINCES, provinceForDistrict } from '../data/rwanda';
 import { resolveRwandaLocation, sectorsForDistrict, GeoSuggestion, getBrowserPosition, gpsErrorKind, manualFromDistrict } from '../data/geo';
 import { useLang, LanguageSwitcher } from '../i18n/LanguageContext';
-import { BRAND_NAME } from '../i18n/translations';
+import { BRAND_NAME, roleTranslationKey } from '../i18n/translations';
 import { clearLoginQuery, readSavedStackScreen } from '../stack/Stackflow';
 
 type Step = 'login' | 'otp' | 'profile' | 'location' | 'id';
@@ -61,7 +61,7 @@ export default function AuthPage() {
     if (isStaffUser(u)) {
       try {
         const portal = await api.openStaffPortal();
-        toast(`Welcome — ${roleLabel(u?.role_id) || 'Staff'}`, 'success');
+        toast(t('welcome_staff', { role: t(roleTranslationKey(u?.role_id)) }), 'success');
         window.location.href = portal.redirect || '/gugu-app/admin/dashboard.php';
       } catch {
         window.location.href = '/gugu-app/admin/dashboard.php';
@@ -99,17 +99,30 @@ export default function AuthPage() {
     }
   };
 
-  // Already logged in (e.g. refresh with ?login=1) → stay in app, do not show login again
+  // Resume forced ID step after register, or when member still must upload ID
   useEffect(() => {
-    if (!isAuthed || !user || step !== 'login') return;
-    clearLoginQuery();
-    void finishHome(user);
+    if (!isAuthed || !user) return;
+    const forced = sessionStorage.getItem('gugu_auth_step');
+    if (forced === 'id') {
+      sessionStorage.removeItem('gugu_auth_step');
+      setStep('id');
+      return;
+    }
+    if (step === 'login') {
+      clearLoginQuery();
+      if (needsIdUpload(user)) {
+        setStep('id');
+        return;
+      }
+      void finishHome(user);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthed, user]);
 
   const afterAuth = async (opts: {
     needs_profile?: boolean;
     needs_location?: boolean;
+    needs_id_upload?: boolean;
     needs_id_verification?: boolean;
     user?: User;
   }) => {
@@ -126,7 +139,11 @@ export default function AuthPage() {
       setStep('location');
       return;
     }
-    // Members enter the app after login (Karrot-style). Posts need Admin payment approval.
+    // Security: every member must upload national ID before using the app
+    if (opts.needs_id_upload || needsIdUpload(opts.user)) {
+      setStep('id');
+      return;
+    }
     await finishHome(opts.user);
   };
 
@@ -148,8 +165,8 @@ export default function AuthPage() {
       const res = await submitId(fd);
       toast(res.message || t('id_submitted'), 'success');
       await refreshUser();
-      goToItemsPage();
-      resetTo('items');
+      // Uploaded — Admin reviews next; member may browse while pending
+      await finishHome(res.user);
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {
@@ -296,7 +313,12 @@ export default function AuthPage() {
       });
       toast(t('gps_ok'), 'success');
       await refreshUser();
-      finishHome();
+      const u = (() => {
+        try { return JSON.parse(localStorage.getItem('gugu_user') || 'null') as User | null; }
+        catch { return user; }
+      })();
+      if (needsIdUpload(u)) setStep('id');
+      else await finishHome(u);
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {
@@ -305,7 +327,8 @@ export default function AuthPage() {
   };
 
   const skipLocation = () => {
-    void finishHome();
+    if (needsIdUpload(user)) setStep('id');
+    else void finishHome();
   };
 
   const sectorOptions = (() => {
@@ -321,7 +344,7 @@ export default function AuthPage() {
           <LanguageSwitcher />
         </div>
 
-        <LoginBrand subtitle={`Sign in to ${BRAND_NAME}`} />
+        <LoginBrand subtitle={t('sign_in_to')} />
 
         {step === 'login' && (
           <form onSubmit={submitLogin} className="gugu-login-form">
@@ -353,7 +376,7 @@ export default function AuthPage() {
               {t('no_account')}{' '}
               <a href="#" onClick={e => { e.preventDefault(); push('register'); }}>{t('register')}</a>
               {' · '}
-              <a href="#" onClick={e => { e.preventDefault(); resetTo('items'); }}>Browse marketplace</a>
+              <a href="#" onClick={e => { e.preventDefault(); resetTo('items'); }}>{t('browse_marketplace')}</a>
             </p>
           </form>
         )}
@@ -465,7 +488,7 @@ export default function AuthPage() {
                     </optgroup>
                   ))}
                 </select>
-                <label>{t('sector')} (Umurenge)</label>
+                <label>{t('sector')}</label>
                 {sectorOptions.length > 0 ? (
                   <select
                     value={locSector}
@@ -505,27 +528,34 @@ export default function AuthPage() {
                 {t('id_rejected')}: {user.id_reject_reason || t('id_resubmit')}
               </div>
             )}
-            <label>{t('id_number')}</label>
-            <input
-              value={idNumber}
-              onChange={e => setIdNumber(e.target.value.replace(/[^\d\s]/g, ''))}
-              placeholder="1199xxxxxxxxxxxx"
-              required
-              inputMode="numeric"
-            />
-            <label>{t('id_photo')}</label>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={e => setIdFile(e.target.files?.[0] || null)}
-              required={user?.id_status !== 'pending'}
-            />
-            <button type="submit" className="gugu-login-primary" disabled={loading || user?.id_status === 'pending'}>
-              {loading ? t('waiting') : t('id_submit')}
-            </button>
-            <button type="button" className="gugu-login-secondary" onClick={() => { goToItemsPage(); resetTo('items'); }}>
-              {t('id_skip_continue')}
-            </button>
+            {user?.id_status !== 'pending' && (
+              <>
+                <label>{t('id_number')}</label>
+                <input
+                  value={idNumber}
+                  onChange={e => setIdNumber(e.target.value.replace(/[^\d\s]/g, ''))}
+                  placeholder="1199xxxxxxxxxxxx"
+                  required
+                  inputMode="numeric"
+                />
+                <label>{t('id_photo')}</label>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={e => setIdFile(e.target.files?.[0] || null)}
+                  required
+                />
+                <button type="submit" className="gugu-login-primary" disabled={loading}>
+                  {loading ? t('waiting') : t('id_submit')}
+                </button>
+              </>
+            )}
+            {user?.id_status === 'pending' && (
+              <button type="button" className="gugu-login-primary" onClick={() => { void finishHome(user); }}>
+                {t('id_continue_pending')}
+              </button>
+            )}
+            <p className="gugu-login-hint" style={{ marginTop: 12 }}>{t('id_required_note')}</p>
           </form>
         )}
       </div>
@@ -556,7 +586,7 @@ export function RegisterPage() {
     }
     setLoading(true);
     try {
-      const data = await api.sendOtp(phone);
+      const data = await api.sendOtp(phone, 'register');
       setDevOtp(data.dev_otp || null);
       if (data.dev_otp) setOtp(data.dev_otp);
       toast(data.dev_otp ? `${t('otp_sent_dev')}: ${data.dev_otp}` : t('otp_sent'), 'success');
@@ -568,9 +598,21 @@ export function RegisterPage() {
     }
   };
 
-  const confirmRegOtp = (e: React.FormEvent) => {
+  const confirmRegOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp.length === 6) setRegStep('details');
+    if (otp.length !== 6) {
+      toast(t('otp_code'), 'error');
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.confirmOtp(phone, otp);
+      setRegStep('details');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const submitDetails = async (e: React.FormEvent) => {
@@ -585,8 +627,9 @@ export function RegisterPage() {
         province: provinceForDistrict(form.district),
       });
       toast(t('register_toast'), 'success');
-      goToItemsPage();
-      resetTo('items');
+      // Next step required: national ID photo for security
+      sessionStorage.setItem('gugu_auth_step', 'id');
+      resetTo('auth');
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {
@@ -598,7 +641,7 @@ export function RegisterPage() {
     <div className="gugu-login-body">
       <div className="gugu-login-card">
         <button type="button" className="gugu-login-link" style={{ alignSelf: 'flex-start' }} onClick={() => pop()}>
-          ← Back
+          {t('back')}
         </button>
         <LoginBrand subtitle={t('register')} />
 
@@ -632,8 +675,8 @@ export function RegisterPage() {
               className="gugu-login-otp"
               required
             />
-            <button type="submit" className="gugu-login-primary" disabled={otp.length !== 6}>
-              {t('verify_otp')}
+            <button type="submit" className="gugu-login-primary" disabled={loading || otp.length !== 6}>
+              {loading ? t('waiting') : t('verify_otp')}
             </button>
             <button type="button" className="gugu-login-secondary" onClick={() => sendRegOtp()} disabled={loading}>
               {t('resend_otp')}

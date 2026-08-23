@@ -4,9 +4,11 @@ import {
 } from '../api/client';
 import { toast } from '../components/AuthContext';
 import { BRAND_NAME } from '../i18n/translations';
+import { useLang } from '../i18n/LanguageContext';
 import { DashStatCards, DashSection, DashEmpty, RoleBadge, StatusPill, RoleDuties } from './shared/DashWidgets';
 
 export default function SuperAdminDashboard({ user }: { user: User }) {
+  const { t } = useLang();
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [listings, setListings] = useState<AdminListingRow[]>([]);
@@ -87,8 +89,8 @@ export default function SuperAdminDashboard({ user }: { user: User }) {
     <div className="dash-body">
       <div className="dash-banner dash-banner-super">
         <div>
-          <div className="dash-banner-role">System Administrator</div>
-          <h2>System Control Center</h2>
+          <div className="dash-banner-role">Admin</div>
+          <h2>{t('dash_system_title')}</h2>
           <p>{BRAND_NAME} Management System · {user.display_name || user.nickname}</p>
         </div>
       </div>
@@ -132,16 +134,18 @@ export default function SuperAdminDashboard({ user }: { user: User }) {
                     </div>
                   </div>
                   <div className="dash-row-actions">
-                    <select
-                      value={u.role_id}
-                      onChange={e => setRole(u.id, Number(e.target.value))}
-                      disabled={u.id === user.id}
-                    >
-                      <option value={1}>System Administrator</option>
-                      <option value={2}>District Manager</option>
-                      <option value={3}>Moderator / Support</option>
-                      <option value={4}>Member</option>
-                    </select>
+                    {u.id === user.id || u.role_id === ROLE.SYSTEM_ADMIN ? (
+                      <span className="dash-hint">Admin</span>
+                    ) : (
+                      <select
+                        value={u.role_id}
+                        onChange={e => setRole(u.id, Number(e.target.value))}
+                      >
+                        <option value={2}>District Manager</option>
+                        <option value={3}>Moderator / Support</option>
+                        <option value={4}>Member</option>
+                      </select>
+                    )}
                     <select
                       value={u.account_status}
                       onChange={e => setStatus(u.id, e.target.value)}

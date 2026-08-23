@@ -44,7 +44,7 @@ export function DashEmpty({ text }: { text: string }) {
 
 export function RoleBadge({ roleId, roleName }: { roleId: number; roleName?: string }) {
   const labels: Record<number, string> = {
-    1: 'System Administrator',
+    1: 'Admin',
     2: 'District Manager',
     3: 'Moderator / Support',
     4: 'Member',
@@ -59,23 +59,26 @@ export function StatusPill({ status }: { status: string }) {
 export function RoleDuties({ roleId }: { roleId: number }) {
   const duties: Record<number, string[]> = {
     1: [
-      'System settings, database backups, MoMo/SMS API configs',
-      'Create staff accounts (District Manager, Moderator / Support)',
-      'Nationwide listings, payments, and reports',
-      'Assign District Manager’s Akarere (Gasabo, Huye, …)',
+      'Full system control — settings, MoMo/SMS, fees, platform flags',
+      'Create & manage staff (District Manager, Moderator / Support)',
+      'Nationwide listings, payments, bans, and reports',
+      'Assign District Manager Akarere (Gasabo, Huye, …)',
+      'Preview any staff dashboard while keeping Admin power',
     ],
     2: [
-      'Manage regional marketplace performance in your district',
-      'Verify local sellers (Gasabo, Huye, etc.)',
-      'Approve or reject local Gurisha listings',
-      'Handle local reports · activate / suspend members',
-      'Cannot ban — escalate to Trust & Safety',
+      'Activate or suspend members (and Moderator / Support) in your Akarere',
+      'Confirm MoMo, Mark paid, Approve good posts (Admin earns)',
+      'Reject spam / fake listings in your region (Items & Jobs)',
+      'Handle reports that involve local listings or users',
+      'Cannot change Admin / other District Managers',
+      'Cannot ban — escalate bans to Admin',
     ],
     3: [
-      'Review flagged listings (Gurisha)',
-      'Handle user support tickets / reports',
+      'Review flagged items & jobs; approve, flag, or reject spam / fakes',
+      'Handle support tickets and community reports',
+      'Review member ID documents (Approve / Reject)',
       'Ban or suspend fraudulent member accounts',
-      'Cannot assign roles or edit staff',
+      'Cannot change Admin, District Managers, or staff roles',
     ],
     4: [
       'Buy items near you',

@@ -3,10 +3,12 @@ import {
   api, AdminOverview, AdminUserRow, AdminListingRow, AdminReportRow, User,
 } from '../api/client';
 import { toast } from '../components/AuthContext';
+import { useLang } from '../i18n/LanguageContext';
 import { DashStatCards, DashSection, DashEmpty, RoleBadge, StatusPill, RoleDuties } from './shared/DashWidgets';
 
 /** District Manager — District Operations Hub */
 export default function RegionalManagerDashboard({ user }: { user: User }) {
+  const { t } = useLang();
   const district = user.admin_district || user.district;
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [users, setUsers] = useState<AdminUserRow[]>([]);
@@ -67,14 +69,14 @@ export default function RegionalManagerDashboard({ user }: { user: User }) {
     }
   };
 
-  if (loading && !overview) return <div className="dash-loading">Loading District Operations Hub…</div>;
+  if (loading && !overview) return <div className="dash-loading">{t('loading')}</div>;
 
   return (
     <div className="dash-body">
       <div className="dash-banner dash-banner-regional">
         <div>
           <div className="dash-banner-role">District Manager</div>
-          <h2>District Operations Hub · {district}</h2>
+          <h2>{t('dash_district_title')} · {district}</h2>
           <p>Local users, listings &amp; reports · Akarere only</p>
         </div>
       </div>

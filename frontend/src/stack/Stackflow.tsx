@@ -23,9 +23,9 @@ const STACK_KEY = 'gugu_stack_screen';
 
 /** Screens safe to restore after refresh (skip login/register) */
 const RESTORE_OK = new Set([
-  'items', 'home', 'sell', 'detail', 'profile', 'dashboard',
+  'items', 'home', 'sell', 'detail', 'profile', 'settings', 'account', 'dashboard',
   'neighborhood', 'chat', 'chat-room', 'favorites', 'services',
-  'recent', 'benefits', 'jobs', 'post-job',
+  'recent', 'benefits', 'jobs', 'post-job', 'my-listings',
 ]);
 
 let screenId = 0;
@@ -131,6 +131,21 @@ export function StackNavigator({
 }) {
   const { stack } = useStack();
   const depth = stack.length;
+  const prevDepth = useRef(depth);
+  const [enterId, setEnterId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const grew = depth > prevDepth.current;
+    prevDepth.current = depth;
+    if (!grew || depth < 2) {
+      setEnterId(null);
+      return;
+    }
+    const top = stack[depth - 1];
+    setEnterId(top.id);
+    const timer = window.setTimeout(() => setEnterId(null), 340);
+    return () => window.clearTimeout(timer);
+  }, [depth, stack]);
 
   return (
     <div className="stack-root">
@@ -143,12 +158,14 @@ export function StackNavigator({
         return (
           <div
             key={screen.id}
-            className={`stack-layer${isTop && index > 0 ? ' enter' : ''}${isPrev && depth > 1 ? ' exit' : ''}`}
+            className={`stack-layer${isTop && enterId === screen.id ? ' enter' : ''}`}
             style={{
-              zIndex: index + 1,
+              zIndex: isTop ? depth + 10 : index + 1,
               display: isTop || isPrev ? 'flex' : 'none',
+              pointerEvents: isTop ? 'auto' : 'none',
               boxShadow: isTop && index > 0 ? '-4px 0 20px rgba(0,0,0,0.08)' : undefined,
             }}
+            aria-hidden={!isTop}
           >
             {Render(screen.params)}
           </div>

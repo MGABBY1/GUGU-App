@@ -7,7 +7,6 @@ import { useStack } from '../stack/Stackflow';
 import { Header } from '../components/BottomNav';
 import { ROLE, isStaffUser, roleLabel } from '../api/client';
 import { useLang } from '../i18n/LanguageContext';
-import { BRAND_NAME } from '../i18n/translations';
 import SuperAdminDashboard from '../dashboards/SuperAdminDashboard';
 import RegionalManagerDashboard from '../dashboards/RegionalManagerDashboard';
 import ModeratorSupportDashboard from '../dashboards/ModeratorSupportDashboard';
@@ -30,7 +29,7 @@ export default function DashboardPage() {
   if (!user) {
     return (
       <>
-        <Header title={t('dashboard')} back />
+        <Header title={t('dashboard')} back variant="admin" />
         <div className="stack-content dash-loading">{t('login_first')}</div>
       </>
     );
@@ -38,14 +37,14 @@ export default function DashboardPage() {
 
   const roleId = user.role_id ?? ROLE.VERIFIED_USER;
   const title =
-    roleId === ROLE.SUPER_ADMIN ? 'System Control Center' :
-    roleId === ROLE.REGIONAL_ADMIN ? 'District Operations Hub' :
-    roleId === ROLE.SUPPORT ? 'Trust & Safety Desk' :
-    `My ${BRAND_NAME}`;
+    roleId === ROLE.SUPER_ADMIN ? t('dash_system_title') :
+    roleId === ROLE.REGIONAL_ADMIN ? t('dash_district_title') :
+    roleId === ROLE.SUPPORT ? t('dash_moderator_title') :
+    t('dash_member_title');
 
   return (
     <>
-      <Header title={title} back />
+      <Header title={title} back variant="admin" />
       <div className="stack-content dash-page">
         {roleId === ROLE.SUPER_ADMIN && <SuperAdminDashboard user={user} />}
         {roleId === ROLE.REGIONAL_ADMIN && <RegionalManagerDashboard user={user} />}

@@ -95,7 +95,7 @@ function decorateOrder(array $o): array {
     $o['status_label'] = orderStatusLabel($o['status']);
     $o['escrow_status'] = orderEscrowStatus((int) $o['id']);
     if (!empty($o['primary_image'])) {
-        $o['primary_image'] = UPLOAD_URL . $o['primary_image'];
+        $o['primary_image'] = publicUploadUrl($o['primary_image']);
     }
     return $o;
 }

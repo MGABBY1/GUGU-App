@@ -52,8 +52,8 @@ $pct = (int) round(($progressDone / $totalSteps) * 100);
     <li class="daily-step is-done">
       <span class="daily-check" aria-hidden="true">✓</span>
       <div class="daily-step-body">
-        <strong>Open Admin portal</strong>
-        <p>You are here — Control Center is open.</p>
+        <strong>Open portal</strong>
+        <p>You are here — working in <?= $scope ?>.</p>
       </div>
       <span class="daily-badge ok">Done</span>
     </li>
@@ -63,7 +63,7 @@ $pct = (int) round(($progressDone / $totalSteps) * 100);
         <strong>Check Needs review / listing queue</strong>
         <p><?= $review ?> item<?= $review === 1 ? '' : 's' ?> waiting in the queue.</p>
       </div>
-      <a class="btn-sm <?= $doneQueue ? 'ok' : 'warn' ?>" href="?pane=listings"><?= $doneQueue ? 'View queue' : 'Open queue' ?></a>
+      <a class="btn-sm <?= $doneQueue ? 'ok' : 'warn' ?>" href="?pane=item-approvals"><?= $doneQueue ? 'View queue' : 'Open queue' ?></a>
     </li>
     <li class="daily-step <?= $donePay ? 'is-done' : 'is-todo' ?>">
       <span class="daily-check" aria-hidden="true"><?= $donePay ? '✓' : '3' ?></span>
@@ -76,7 +76,7 @@ $pct = (int) round(($progressDone / $totalSteps) * 100);
           · <?= $fee ?> RWF each · then <em>Mark paid</em>.
         </p>
       </div>
-      <a class="btn-sm <?= $donePay ? 'ok' : 'warn' ?>" href="?pane=listings"><?= $donePay ? 'All paid' : 'Confirm pay' ?></a>
+      <a class="btn-sm <?= $donePay ? 'ok' : 'warn' ?>" href="?pane=payments"><?= $donePay ? 'All paid' : 'Confirm pay' ?></a>
     </li>
     <li class="daily-step <?= $doneApprove ? 'is-done' : 'is-todo' ?>">
       <span class="daily-check" aria-hidden="true"><?= $doneApprove ? '✓' : '4' ?></span>
@@ -84,7 +84,7 @@ $pct = (int) round(($progressDone / $totalSteps) * 100);
         <strong>Approve good posts (Admin earns)</strong>
         <p><?= $paidPending ?> paid post<?= $paidPending === 1 ? '' : 's' ?> ready — Approve to go live and count earnings.</p>
       </div>
-      <a class="btn-sm <?= $doneApprove ? 'ok' : '' ?>" href="?pane=listings"><?= $doneApprove ? 'Caught up' : 'Approve now' ?></a>
+      <a class="btn-sm <?= $doneApprove ? 'ok' : '' ?>" href="?pane=item-approvals"><?= $doneApprove ? 'Caught up' : 'Approve now' ?></a>
     </li>
     <li class="daily-step <?= $doneQueue ? 'is-done' : 'is-todo' ?>">
       <span class="daily-check" aria-hidden="true"><?= $doneQueue ? '✓' : '5' ?></span>
@@ -92,7 +92,7 @@ $pct = (int) round(($progressDone / $totalSteps) * 100);
         <strong>Reject spam / fake posts</strong>
         <p>Use <em>Reject</em> on junk, scams, or fake listings in the same queue.</p>
       </div>
-      <a class="btn-sm danger" href="?pane=listings">Reject junk</a>
+      <a class="btn-sm danger" href="?pane=item-approvals">Reject junk</a>
     </li>
     <li class="daily-step <?= $doneReports ? 'is-done' : 'is-todo' ?>">
       <span class="daily-check" aria-hidden="true"><?= $doneReports ? '✓' : '6' ?></span>

@@ -47,15 +47,9 @@ $stmt->execute([$district, $district]);
 $openReports = $stmt->fetchAll();
 $reports = count($openReports);
 
-$stmt = $db->prepare('
-  SELECT id, nickname, phone, district, id_number, id_document_path, id_status, created_at
-  FROM users
-  WHERE role_id = 4 AND id_status = "pending" AND district = ?
-  ORDER BY created_at DESC
-  LIMIT 40
-');
-$stmt->execute([$district]);
-$idQueue = $stmt->fetchAll();
+$idData = portalIdVerificationData($db, $district);
+$idPending = (int) $idData['pending'];
+$idQueue = $idData['queue'];
 ?>
 <section class="panel portal-hero portal-hero-support">
   <div class="portal-hero-text">
@@ -65,7 +59,7 @@ $idQueue = $stmt->fetchAll();
   </div>
   <div class="stats">
     <div class="stat"><strong><?= $review ?></strong><span>Queue</span></div>
-    <div class="stat"><strong><?= count($idQueue) ?></strong><span>ID pending</span></div>
+    <div class="stat"><strong><?= $idPending ?></strong><span>ID pending</span></div>
     <div class="stat"><strong><?= $reports ?></strong><span>Open reports</span></div>
     <div class="stat"><strong><?= $active ?></strong><span>Active items</span></div>
   </div>
@@ -73,34 +67,9 @@ $idQueue = $stmt->fetchAll();
 
 <?php require __DIR__ . '/../includes/daily_checklist.php'; ?>
 
-<section class="panel" id="id-queue">
-  <h3>Member ID verification queue</h3>
-  <?php if (!$idQueue): ?>
-    <p class="hint">No pending ID checks ✅</p>
-  <?php else: ?>
-  <div class="table-wrap"><table>
-    <thead><tr><th>Member</th><th>Phone</th><th>ID number</th><th>Document</th><th>Review</th></tr></thead>
-    <tbody>
-    <?php foreach ($idQueue as $u): ?>
-      <tr>
-        <td><?= htmlspecialchars($u['nickname'] ?: 'User') ?><br><small class="muted"><?= htmlspecialchars($u['district'] ?: '') ?></small></td>
-        <td><?= htmlspecialchars($u['phone']) ?></td>
-        <td><code><?= htmlspecialchars($u['id_number'] ?: '—') ?></code></td>
-        <td>
-          <?php if (!empty($u['id_document_path'])): ?>
-            <a href="<?= htmlspecialchars(UPLOAD_URL . $u['id_document_path']) ?>" target="_blank" rel="noreferrer">View ID photo</a>
-          <?php else: ?>—<?php endif; ?>
-        </td>
-        <td class="portal-actions">
-          <?= portalActionForm('review-id', ['user_id' => $u['id'], 'id_status' => 'approved'], 'Approve ID', 'btn-sm ok') ?>
-          <?= portalActionForm('review-id', ['user_id' => $u['id'], 'id_status' => 'rejected', 'id_reject_reason' => 'Unclear document — resubmit'], 'Reject', 'btn-sm danger') ?>
-        </td>
-      </tr>
-    <?php endforeach; ?>
-    </tbody>
-  </table></div>
-  <?php endif; ?>
-</section>
+<div id="id-queue">
+  <?php portalRenderIdVerificationQueue($idData, $district); ?>
+</div>
 
 <section class="panel">
   <h3>Key responsibilities</h3>

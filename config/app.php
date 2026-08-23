@@ -1,6 +1,6 @@
 <?php
 /**
- * Runtime platform settings (Super Admin editable).
+ * Runtime platform settings (Admin editable).
  * Overrides defaults from config/app.php when present.
  */
 function guguRuntimeSettingsPath(): string {
@@ -30,12 +30,28 @@ function guguSaveRuntimeSettings(array $settings): void {
 
 /**
  * GUGU marketplace monetization settings
- * Announce fee: every item / job / announcement pays this, then Admin approves.
+ * Items (Gurisha) and Jobs (Akazi) are separate businesses with separate fees.
  */
 $__guguRuntime = guguLoadRuntimeSettings();
 
+if (!defined('GUGU_JOB_CATEGORY_ID')) {
+    define('GUGU_JOB_CATEGORY_ID', 11);
+}
+if (!defined('GUGU_ITEM_ANNOUNCE_FEE_RWF')) {
+    define(
+        'GUGU_ITEM_ANNOUNCE_FEE_RWF',
+        (int) ($__guguRuntime['item_announce_fee_rwf'] ?? $__guguRuntime['announce_fee_rwf'] ?? 1000)
+    );
+}
+if (!defined('GUGU_JOB_ANNOUNCE_FEE_RWF')) {
+    define(
+        'GUGU_JOB_ANNOUNCE_FEE_RWF',
+        (int) ($__guguRuntime['job_announce_fee_rwf'] ?? $__guguRuntime['announce_fee_rwf'] ?? 1000)
+    );
+}
+/** @deprecated use GUGU_ITEM_ANNOUNCE_FEE_RWF — kept for older call sites */
 if (!defined('GUGU_ANNOUNCE_FEE_RWF')) {
-    define('GUGU_ANNOUNCE_FEE_RWF', (int) ($__guguRuntime['announce_fee_rwf'] ?? 1000));
+    define('GUGU_ANNOUNCE_FEE_RWF', (int) GUGU_ITEM_ANNOUNCE_FEE_RWF);
 }
 if (!defined('GUGU_MOMO_NUMBER')) {
     define('GUGU_MOMO_NUMBER', (string) ($__guguRuntime['momo_number'] ?? '0781111111'));

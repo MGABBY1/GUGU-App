@@ -1,16 +1,17 @@
 import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
-import { User, api, ProfileSetupBody } from '../api/client';
+import { User, api, ProfileSetupBody, applyPortalViewUser, capturePortalViewFromUrl, clearPortalView } from '../api/client';
 import { syncHomeLocationFilter } from '../data/geo';
 
 interface AuthCtx {
   user: User | null;
   token: string | null;
-  login: (phone: string, password: string) => Promise<{ needs_profile?: boolean; needs_location?: boolean; needs_id_verification?: boolean; user: User }>;
-  loginWithOtp: (phone: string, code: string) => Promise<{ needs_profile?: boolean; needs_location?: boolean; needs_id_verification?: boolean; is_new?: boolean; user: User }>;
-  register: (body: Parameters<typeof api.register>[0]) => Promise<{ needs_location?: boolean; needs_id_verification?: boolean; user: User }>;
+  login: (phone: string, password: string) => Promise<{ needs_profile?: boolean; needs_location?: boolean; needs_id_upload?: boolean; needs_id_verification?: boolean; user: User }>;
+  loginWithOtp: (phone: string, code: string) => Promise<{ needs_profile?: boolean; needs_location?: boolean; needs_id_upload?: boolean; needs_id_verification?: boolean; is_new?: boolean; user: User }>;
+  register: (body: Parameters<typeof api.register>[0]) => Promise<{ needs_location?: boolean; needs_id_upload?: boolean; needs_id_verification?: boolean; user: User }>;
   completeProfile: (body: ProfileSetupBody) => Promise<{ needs_location?: boolean }>;
   verifyLocation: (lat: number, lng: number, place?: { district?: string; sector?: string; province?: string }) => Promise<void>;
   submitId: (form: FormData) => Promise<{ user: User; message?: string }>;
+  updateProfile: (body: Parameters<typeof api.updateProfile>[0]) => Promise<User>;
   refreshUser: () => Promise<void>;
   logout: () => void;
   isAuthed: boolean;
@@ -18,30 +19,50 @@ interface AuthCtx {
 
 const AuthContext = createContext<AuthCtx | null>(null);
 
+/** Persist server user; overlay DM/Moderator portal view only in memory. */
+function storeUser(u: User): User {
+  localStorage.setItem('gugu_user', JSON.stringify(u));
+  return applyPortalViewUser(u) || u;
+}
+
+function readStoredUser(): User | null {
+  const s = localStorage.getItem('gugu_user');
+  if (!s) return null;
+  try {
+    return applyPortalViewUser(JSON.parse(s) as User);
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
-    const s = localStorage.getItem('gugu_user');
-    return s ? JSON.parse(s) : null;
+    capturePortalViewFromUrl();
+    return readStoredUser();
   });
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('gugu_token'));
 
   const setAuth = (t: string, u: User) => {
-    setToken(t); setUser(u);
+    setToken(t);
+    setUser(storeUser(u));
     localStorage.setItem('gugu_token', t);
-    localStorage.setItem('gugu_user', JSON.stringify(u));
   };
 
   const updateUser = (u: User) => {
-    setUser(u);
-    localStorage.setItem('gugu_user', JSON.stringify(u));
+    setUser(storeUser(u));
   };
 
+  useEffect(() => {
+    capturePortalViewFromUrl();
+    setUser(readStoredUser());
+  }, []);
   const login = async (phone: string, password: string) => {
     const data = await api.login(phone, password);
     setAuth(data.token, data.user);
     return {
       needs_profile: data.needs_profile,
       needs_location: data.needs_location,
+      needs_id_upload: data.needs_id_upload ?? data.user.needs_id_upload,
       needs_id_verification: data.needs_id_verification ?? data.user.needs_id_verification,
       user: data.user,
     };
@@ -53,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return {
       needs_profile: data.needs_profile || data.is_new,
       needs_location: data.needs_location,
+      needs_id_upload: data.needs_id_upload ?? data.user.needs_id_upload,
       needs_id_verification: data.needs_id_verification ?? data.user.needs_id_verification,
       is_new: data.is_new,
       user: data.user,
@@ -64,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuth(data.token, data.user);
     return {
       needs_location: data.needs_location,
+      needs_id_upload: data.needs_id_upload ?? data.user.needs_id_upload,
       needs_id_verification: data.needs_id_verification ?? data.user.needs_id_verification,
       user: data.user,
     };
@@ -93,7 +116,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { user: data.user, message: data.message };
   };
 
+  const updateProfile = async (body: Parameters<typeof api.updateProfile>[0]) => {
+    const data = await api.updateProfile(body);
+    updateUser(data.user);
+    return data.user;
+  };
+
   const logout = () => {
+    clearPortalView();
     setToken(null); setUser(null);
     localStorage.removeItem('gugu_token');
     localStorage.removeItem('gugu_user');
@@ -124,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user, token, login, loginWithOtp, register, completeProfile, verifyLocation, submitId, refreshUser, logout,
+      user, token, login, loginWithOtp, register, completeProfile, verifyLocation, submitId, updateProfile, refreshUser, logout,
       isAuthed: !!token,
     }}>
       {children}

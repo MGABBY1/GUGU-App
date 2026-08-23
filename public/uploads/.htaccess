@@ -1,7 +1,15 @@
 # Prevent directory listing
 Options -Indexes
 
-# Allow image uploads
+# Serve common image formats clearly
+<IfModule mod_mime.c>
+  AddType image/jpeg .jpg .jpeg
+  AddType image/png .png
+  AddType image/webp .webp
+  AddType image/gif .gif
+</IfModule>
+
 <IfModule mod_headers.c>
     Header set Access-Control-Allow-Origin "*"
+    Header set Cache-Control "public, max-age=604800"
 </IfModule>

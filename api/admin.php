@@ -122,7 +122,7 @@ function overview(PDO $db, array $actor, ?string $scopeDistrict): void {
     }
 
     $byRole = [];
-    // Role matrix is Super Admin only (national). Support skips user census.
+    // Role matrix is Admin only (national). Support skips user census.
     if ($roleId === 1 || $scopeDistrict) {
         $roleSql = 'SELECT role_id, COUNT(*) as count FROM users';
         $roleParams = [];
@@ -199,7 +199,7 @@ function listUsers(PDO $db, array $actor, ?string $scopeDistrict): void {
         $u['role_id'] = (int) $u['role_id'];
         $u['role_name'] = roleName((int) $u['role_id']);
         $u['manner_score'] = (float) $u['manner_score'];
-        // Only super admin sees phones of others
+        // Only Admin sees phones of others
         if ((int) $actor['role_id'] !== 1) {
             $u['phone'] = substr($u['phone'], 0, 6) . '****';
             unset($u['full_name']);
@@ -210,7 +210,7 @@ function listUsers(PDO $db, array $actor, ?string $scopeDistrict): void {
 
 function setRole(PDO $db, array $actor): void {
     if ((int) $actor['role_id'] !== 1) {
-        jsonError('System Administrator only', 403);
+        jsonError('Admin only', 403);
     }
     $data = getJsonInput();
     $userId = (int) ($data['user_id'] ?? 0);
@@ -221,6 +221,10 @@ function setRole(PDO $db, array $actor): void {
     }
     if ($userId === (int) $actor['id'] && $newRole !== 1) {
         jsonError('Cannot demote yourself');
+    }
+    // Only one Admin — never assign role 1 to another account
+    if ($newRole === 1 && $userId !== (int) $actor['id']) {
+        jsonError('Admin role is reserved — assign District Manager or Moderator only');
     }
     if (in_array($newRole, [2, 3], true) && $adminDistrict === '') {
         jsonError('District Manager and Moderator need admin_district (Akarere)');
@@ -254,16 +258,20 @@ function setStatus(PDO $db, array $actor, ?string $scopeDistrict): void {
     if (!$target) jsonError('User not found', 404);
 
     $actorRole = (int) $actor['role_id'];
-    // Trust & Safety may suspend or ban members (not staff)
-    if ($actorRole === 3) {
+    // Admin (role 1) — full control over members and staff (except self)
+    if ($actorRole === 1) {
+        // nationwide — no further limits
+    } elseif ($actorRole === 3) {
+        // Trust & Safety may suspend or ban members (not staff)
         if ((int) $target['role_id'] <= 3) jsonError('Cannot change staff accounts', 403);
-    }
-    if ($actorRole === 2) {
+    } elseif ($actorRole === 2) {
         if ((int) $target['role_id'] <= 2) jsonError('Cannot change this account', 403);
         if ($status === 'banned') jsonError('District Manager may suspend only — escalate bans to Trust & Safety', 403);
         if ($scopeDistrict && $target['district'] !== $scopeDistrict) {
             jsonError('Outside your district', 403);
         }
+    } else {
+        jsonError('Staff access only', 403);
     }
 
     $db->prepare('UPDATE users SET account_status = ? WHERE id = ?')->execute([$status, $userId]);
@@ -433,7 +441,7 @@ function staffDirectory(PDO $db, array $actor): void {
         $row['role_name'] = roleName($rid);
         $row['role_label'] = roleLabel($rid);
         $row['is_you'] = ((int) $row['id'] === (int) $actor['id']);
-        // Only Super Admin sees phones elsewhere; directory stays name/role only
+        // Only Admin sees phones elsewhere; directory stays name/role only
         unset($row['phone'], $row['email'], $row['full_name']);
     }
     jsonResponse([

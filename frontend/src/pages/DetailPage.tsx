@@ -1,19 +1,32 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useStack } from '../stack/Stackflow';
-import { api, ListingDetail, CATEGORY_ICONS, isStaffUser, roleLabel } from '../api/client';
+import {
+  api,
+  ListingDetail,
+  ChatRoom,
+  Message,
+  CATEGORY_ICONS,
+  isStaffUser,
+  getPortalView,
+  portalReturnUrl,
+  identityTitle,
+  identityPlace,
+  displayRoleId,
+} from '../api/client';
 import { useAuth, toast } from '../components/AuthContext';
 import { Header } from '../components/BottomNav';
 import { useLang, LanguageSwitcher } from '../i18n/LanguageContext';
 import { formatTrustScore } from '../i18n/format';
-import { LANG_META, BRAND_NAME, type Lang } from '../i18n/translations';
+import { LANG_META, BRAND_NAME, roleTranslationKey, type Lang } from '../i18n/translations';
 import { getGuguServices } from './ServicePages';
 import { LocationSheet } from '../components/LocationSheet';
 import { syncHomeLocationFilter } from '../data/geo';
 import { trackRecentView, JOBS_CATEGORY_ID } from '../data/services';
+import { CHAT_EMOJI_CATEGORIES } from '../data/chatEmojis';
 
 export default function DetailPage({ id }: { id?: number }) {
   const listingId = id!;
-  const { push, resetTo } = useStack();
+  const { push, resetTo, replace } = useStack();
   const { isAuthed } = useAuth();
   const { t, price, timeAgo, category } = useLang();
   const [l, setL] = useState<ListingDetail | null>(null);
@@ -22,6 +35,16 @@ export default function DetailPage({ id }: { id?: number }) {
   const [contactOpen, setContactOpen] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
   const [applyMsg, setApplyMsg] = useState('');
+  const [managing, setManaging] = useState(false);
+
+  const reloadListing = () => {
+    api.listing(listingId)
+      .then(d => {
+        setL(d.listing);
+        setSaved(!!d.listing.is_favorited);
+      })
+      .catch(() => {});
+  };
 
   useEffect(() => {
     api.listing(listingId)
@@ -52,6 +75,7 @@ export default function DetailPage({ id }: { id?: number }) {
   }
 
   const isSeller = !!l.is_owner;
+  const isSold = l.status === 'sold';
   const isJob =
     Number(l.category_id) === JOBS_CATEGORY_ID
     || l.category_icon === 'job'
@@ -71,7 +95,48 @@ export default function DetailPage({ id }: { id?: number }) {
   };
 
   const openChatRoom = (roomId: number) => {
-    setTimeout(() => push('chat-room', { roomId: Number(roomId) }), 50);
+    // Replace listing/detail layer so chat is a clean top page (no page peeking behind)
+    setTimeout(() => replace('chat-room', { roomId: Number(roomId) }), 50);
+  };
+
+  const markSold = async () => {
+    if (!window.confirm(t('mark_sold_confirm'))) return;
+    setManaging(true);
+    try {
+      const res = await api.updateListing(listingId, { status: 'sold' });
+      toast(res.message || t('marked_sold'), 'success');
+      reloadListing();
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setManaging(false);
+    }
+  };
+
+  const relistItem = async () => {
+    setManaging(true);
+    try {
+      await api.updateListing(listingId, { status: 'active' });
+      toast(t('relist_for_sale'), 'success');
+      reloadListing();
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setManaging(false);
+    }
+  };
+
+  const deletePost = async () => {
+    if (!window.confirm(t('delete_post_confirm'))) return;
+    setManaging(true);
+    try {
+      const res = await api.deleteListing(listingId);
+      toast(res.message || t('post_deleted'), 'success');
+      resetTo('my-listings');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+      setManaging(false);
+    }
   };
 
   const startChat = async () => {
@@ -134,11 +199,7 @@ export default function DetailPage({ id }: { id?: number }) {
     setBusy(true);
     try {
       const d = await api.createRoom(l.id);
-      try {
-        await api.sendMessage(d.room_id, msg);
-      } catch {
-        /* still open chat */
-      }
+      await api.sendMessage(d.room_id, msg);
       setApplyOpen(false);
       toast(t('job_apply_sent'), 'success');
       openChatRoom(d.room_id);
@@ -167,25 +228,28 @@ export default function DetailPage({ id }: { id?: number }) {
     <>
       <Header title={isJob ? t('jobs_title') : t('item')} back />
       <div className="stack-content detail-page">
-        {l.images && l.images.length > 1 ? (
-          <div className="detail-gallery">
-            {l.images.map((img, i) => (
-              <img key={i} src={img.url} alt="" />
-            ))}
-          </div>
-        ) : (
-          <div className={`detail-hero${isJob ? ' detail-hero-job' : ''}`}>
-            {l.images?.[0] ? (
-              <img src={l.images[0].url} alt="" />
-            ) : (
-              <div className="detail-hero-empty">{isJob ? '💼' : '📦'}</div>
-            )}
-          </div>
-        )}
+        <div className={`detail-media-wrap${isSold ? ' is-sold' : ''}`}>
+          {l.images && l.images.length > 1 ? (
+            <div className="detail-gallery">
+              {l.images.map((img, i) => (
+                <img key={i} src={img.url} alt="" />
+              ))}
+            </div>
+          ) : (
+            <div className={`detail-hero${isJob ? ' detail-hero-job' : ''}`}>
+              {l.images?.[0] ? (
+                <img src={l.images[0].url} alt="" />
+              ) : (
+                <div className="detail-hero-empty">{isJob ? '💼' : '📦'}</div>
+              )}
+            </div>
+          )}
+          {isSold && !isJob && <div className="sold-stamp" aria-hidden="true">{t('sold_badge')}</div>}
+        </div>
 
         <div className="detail-body">
           <div className="detail-price-row">
-            <div className={`detail-price${l.is_free ? ' free' : ''}`}>
+            <div className={`detail-price${l.is_free ? ' free' : ''}${isSold ? ' is-sold' : ''}`}>
               {isJob && l.is_free ? t('pay_negotiable') : price(l.price, l.is_free)}
             </div>
             <button type="button" className={`detail-heart${saved ? ' on' : ''}`} onClick={toggleSave} aria-label={t('favorite')}>
@@ -202,6 +266,28 @@ export default function DetailPage({ id }: { id?: number }) {
             {timeAgo(l.created_at) || l.time_ago}
             {l.view_count != null ? ` · ${l.view_count} ${t('views_label')}` : ''}
           </p>
+
+          {isSold && !isJob && (
+            <div className="post-track-banner sold">{t('sold_out_banner')}</div>
+          )}
+
+          {!isSold && isSeller && (() => {
+            const mod = l.moderation_status || 'approved';
+            if (mod === 'pending' || mod === 'flagged') {
+              return (
+                <div className="post-track-banner waiting">
+                  {t('post_status_waiting')} — {l.payment_status === 'paid' ? t('post_hint_paid_waiting') : t('post_hint_waiting')}
+                </div>
+              );
+            }
+            if (mod === 'rejected') {
+              return <div className="post-track-banner rejected">{t('post_status_rejected')} — {t('post_hint_rejected')}</div>;
+            }
+            if (mod === 'approved') {
+              return <div className="post-track-banner live">{t('post_status_live')} — {t('post_hint_live')}</div>;
+            }
+            return null;
+          })()}
 
           <section className="detail-meet">
             <div className="detail-meet-ico">📍</div>
@@ -230,7 +316,7 @@ export default function DetailPage({ id }: { id?: number }) {
 
           {isSeller ? (
             <div className="gugu-deal-role gugu-deal-seller">{isJob ? t('job_announcement') : t('you_are_seller')}</div>
-          ) : isAuthed && !isJob ? (
+          ) : isAuthed && !isJob && !isSold ? (
             <div className="gugu-deal-role gugu-deal-buyer">{t('you_can_buy')}</div>
           ) : null}
 
@@ -239,13 +325,21 @@ export default function DetailPage({ id }: { id?: number }) {
         </div>
       </div>
 
-      {!isSeller && !isJob && (
+      {!isSeller && !isJob && !isSold && (
         <div className="detail-cta-bar">
           <button type="button" className="detail-cta-chat" disabled={busy} onClick={startChat}>
             💬 {t('chat_seller')}
           </button>
           <button type="button" className="detail-cta-buy" disabled={busy} onClick={startChat}>
             {t('buy_now')}
+          </button>
+        </div>
+      )}
+
+      {!isSeller && !isJob && isSold && (
+        <div className="detail-cta-bar">
+          <button type="button" className="detail-cta-buy" disabled>
+            {t('sold_badge')}
           </button>
         </div>
       )}
@@ -261,10 +355,31 @@ export default function DetailPage({ id }: { id?: number }) {
         </div>
       )}
 
-      {isSeller && (
+      {isSeller && !isJob && (
+        <div className="detail-owner-actions">
+          {!isSold && (l.moderation_status === 'approved' || !l.moderation_status) && (
+            <button type="button" className="seed-btn seed-btn-carrot seed-btn-block" disabled={managing} onClick={() => { void markSold(); }}>
+              {t('mark_as_sold')}
+            </button>
+          )}
+          {isSold && (
+            <button type="button" className="seed-btn seed-btn-outline seed-btn-block" disabled={managing} onClick={() => { void relistItem(); }}>
+              {t('relist_for_sale')}
+            </button>
+          )}
+          <button type="button" className="seed-btn seed-btn-outline seed-btn-block detail-btn-danger" disabled={managing} onClick={() => { void deletePost(); }}>
+            {t('delete_post')}
+          </button>
+          <button type="button" className="gugu-login-link" onClick={() => push('my-listings')}>
+            {t('my_posts_title')} ›
+          </button>
+        </div>
+      )}
+
+      {isSeller && isJob && (
         <div className="detail-cta-bar">
-          <button type="button" className="detail-cta-buy" onClick={() => (isJob ? resetTo('jobs') : resetTo('profile'))}>
-            {isJob ? t('available_jobs') : t('my_listings')}
+          <button type="button" className="detail-cta-buy" onClick={() => resetTo('jobs')}>
+            {t('available_jobs')}
           </button>
         </div>
       )}
@@ -333,6 +448,27 @@ export default function DetailPage({ id }: { id?: number }) {
 function MiniNav({ active }: { active: string }) {
   const { push } = useStack();
   const { t } = useLang();
+  const { isAuthed } = useAuth();
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    if (!isAuthed) {
+      setUnread(0);
+      return;
+    }
+    const load = () => {
+      api.chatRooms()
+        .then(d => {
+          const total = (d.rooms || []).reduce((sum, r) => sum + Number(r.unread_count || 0), 0);
+          setUnread(total);
+        })
+        .catch(() => {});
+    };
+    load();
+    const timer = window.setInterval(load, 10000);
+    return () => window.clearInterval(timer);
+  }, [isAuthed]);
+
   const tabs = [
     { name: 'items', ico: '🏠', label: t('nav_home') },
     { name: 'neighborhood', ico: '📍', label: t('nav_neighborhood') },
@@ -343,7 +479,13 @@ function MiniNav({ active }: { active: string }) {
     <nav className="seed-bottom-nav">
       {tabs.map(tab => (
         <button key={tab.name} className={`seed-nav-item${tab.name === active ? ' active' : ''}`} onClick={() => push(tab.name)}>
-          <span className="ico">{tab.ico}</span><span>{tab.label}</span>
+          <span className="ico" style={{ position: 'relative' }}>
+            {tab.ico}
+            {tab.name === 'chat' && unread > 0 && (
+              <span className="nav-unread-dot">{unread > 99 ? '99+' : unread}</span>
+            )}
+          </span>
+          <span>{tab.label}</span>
         </button>
       ))}
     </nav>
@@ -354,7 +496,12 @@ export function ProfilePage() {
   const { user, logout, isAuthed, refreshUser } = useAuth();
   const { push, resetTo } = useStack();
   const { t, lang, setLang } = useLang();
-  const [stats, setStats] = useState({ active_listings: 0, sold_listings: 0, favorites_count: 0 });
+  const [stats, setStats] = useState({
+    active_listings: 0,
+    sold_listings: 0,
+    favorites_count: 0,
+    pending_listings: 0,
+  });
   const [locOpen, setLocOpen] = useState(false);
   const [openingPortal, setOpeningPortal] = useState(false);
   const [staff, setStaff] = useState<{
@@ -373,7 +520,12 @@ export function ProfilePage() {
   useEffect(() => {
     if (!isAuthed) return;
     void refreshUser();
-    api.profile().then(d => setStats(d.user)).catch(() => {});
+    api.profile().then(d => setStats({
+      active_listings: d.user.active_listings || 0,
+      sold_listings: d.user.sold_listings || 0,
+      favorites_count: d.user.favorites_count || 0,
+      pending_listings: d.user.pending_listings || 0,
+    })).catch(() => {});
   }, [isAuthed]);
 
   useEffect(() => {
@@ -386,6 +538,11 @@ export function ProfilePage() {
   }, [isAuthed, user?.id, user?.role_id]);
 
   const openManagementPortal = async () => {
+    const portalView = getPortalView();
+    if (portalView || user?.portal_view_active) {
+      window.location.href = portalReturnUrl(portalView);
+      return;
+    }
     setOpeningPortal(true);
     try {
       const portal = await api.openStaffPortal();
@@ -426,15 +583,22 @@ export function ProfilePage() {
     );
   }
 
-  const display = user.nickname || user.full_name || BRAND_NAME;
-  const place = [user.sector, user.district].filter(Boolean).join(', ');
+  const display = identityTitle(user);
+  const place = identityPlace(user);
   const trust = formatTrustScore(user.manner_score);
   const management = isStaffUser(user);
 
   type MenuRow = { icon: string; label: string; onClick: () => void; danger?: boolean; sub?: string; busy?: boolean };
 
   const buyingSelling: MenuRow[] = [
-    { icon: '🏷️', label: t('my_listings'), onClick: () => push('dashboard'), sub: String(stats.active_listings || 0) },
+    {
+      icon: '🏷️',
+      label: t('my_listings'),
+      onClick: () => push('my-listings'),
+      sub: stats.pending_listings
+        ? `${stats.active_listings} · ${stats.pending_listings} ${t('post_filter_waiting')}`
+        : String(stats.active_listings || 0),
+    },
     { icon: '🛍️', label: t('my_purchases'), onClick: () => resetTo('chat') },
     { icon: '📷', label: t('gugu_vision'), onClick: () => push('sell') },
     { icon: '📖', label: t('gugu_guide'), onClick: () => resetTo('neighborhood') },
@@ -452,7 +616,7 @@ export function ProfilePage() {
 
   const businessMenu: MenuRow[] = management
     ? [
-        { icon: '🏪', label: t('manage_business'), onClick: () => { void openManagementPortal(); }, busy: openingPortal, sub: openingPortal ? t('waiting') : roleLabel(user.role_id) },
+        { icon: '🏪', label: t('manage_business'), onClick: () => { void openManagementPortal(); }, busy: openingPortal, sub: openingPortal ? t('waiting') : t(roleTranslationKey(displayRoleId(user))) },
         { icon: '📢', label: t('advertising'), onClick: () => push('dashboard') },
         { icon: '📊', label: t('open_dashboard'), onClick: () => push('dashboard') },
       ]
@@ -472,7 +636,7 @@ export function ProfilePage() {
         : t('gps_tap_verify'),
     },
     { icon: '🌐', label: t('language'), onClick: cycleLang, sub: LANG_META[lang].short },
-    { icon: '⚙', label: t('settings_label'), onClick: () => push('dashboard') },
+    { icon: '⚙', label: t('settings_label'), onClick: () => push('settings') },
   ];
 
   const contactMenu: MenuRow[] = [
@@ -480,7 +644,7 @@ export function ProfilePage() {
     { icon: '🎧', label: t('faqs'), onClick: () => toast(t('faqs_soon'), 'success') },
     { icon: '✉️', label: t('feedback'), onClick: () => toast(t('feedback_soon'), 'success') },
     { icon: '🚪', label: t('delete_account'), onClick: () => toast(t('delete_account_hint'), 'error'), danger: true },
-    { icon: 'ℹ', label: t('about_gugu'), onClick: () => toast(`${BRAND_NAME} · Buy or Sell · Rwanda`, 'success') },
+    { icon: 'ℹ', label: t('about_gugu'), onClick: () => toast(t('about_brand_tagline'), 'success') },
     { icon: 'ℹ', label: t('terms_policies'), onClick: () => toast(t('terms_soon'), 'success') },
     { icon: '↩', label: t('logout'), onClick: () => { logout(); resetTo('items'); }, danger: true },
   ];
@@ -515,7 +679,7 @@ export function ProfilePage() {
         <header className="mygugu-top">
           <h1>{t('my_gugu')}</h1>
           <div className="mygugu-top-actions">
-            <button type="button" className="mygugu-gear" aria-label={t('gugu_settings')} onClick={() => push('dashboard')}>
+            <button type="button" className="mygugu-gear" aria-label={t('gugu_settings')} onClick={() => push('settings')}>
               ⚙
             </button>
           </div>
@@ -594,19 +758,19 @@ export function ProfilePage() {
             <div className="mygugu-menu mygugu-staff-list">
               {staffLoading && <div className="mygugu-empty">{t('waiting')}</div>}
               {!staffLoading && staff.length === 0 && (
-                <div className="mygugu-empty">No management users found</div>
+                <div className="mygugu-empty">{t('no_management_users')}</div>
               )}
               {!staffLoading && staff.map(s => (
                 <div key={s.id} className={`mygugu-staff-row${s.is_you ? ' is-you' : ''}`}>
                   <div className={`mygugu-staff-avatar role-${s.role_id}`}>{(s.nickname || '?')[0]}</div>
                   <div className="mygugu-staff-body">
                     <div className="mygugu-staff-name">
-                      {s.nickname || 'Staff'}
+                      {s.nickname || t('role_staff')}
                       {s.is_you && <span className="mygugu-you">{t('you_badge')}</span>}
                     </div>
                     <div className="mygugu-staff-role">{s.role_label}</div>
                     <div className="mygugu-staff-place">
-                      {s.role_id === 2 && s.admin_district ? `Region · ${s.admin_district}` : (s.district || '—')}
+                      {s.role_id === 2 && s.admin_district ? t('region_label', { district: s.admin_district }) : (s.district || '—')}
                       {' · '}
                       {s.account_status}
                     </div>
@@ -690,27 +854,92 @@ export function NeighborhoodPage() {
 export function ChatPage() {
   const { push } = useStack();
   const { isAuthed } = useAuth();
-  const { t } = useLang();
-  const [rooms, setRooms] = useState<{ id: number; other_name: string; last_message?: string; listing_title: string }[]>([]);
+  const { t, timeAgo } = useLang();
+  const [rooms, setRooms] = useState<ChatRoom[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const dealLabel = (r: ChatRoom) => {
+    if (r.is_job) {
+      return r.my_deal_role === 'seller' ? t('chat_role_poster') : t('chat_role_applicant');
+    }
+    return r.my_deal_role === 'seller' ? t('chat_role_seller') : t('chat_role_buyer');
+  };
+
+  const loadRooms = useCallback(() => {
+    if (!isAuthed) return;
+    api.chatRooms()
+      .then(d => setRooms(d.rooms || []))
+      .catch(() => setRooms([]))
+      .finally(() => setLoading(false));
+  }, [isAuthed]);
 
   useEffect(() => {
-    if (!isAuthed) { push('auth'); return; }
-    api.chatRooms().then(d => setRooms(d.rooms)).catch(() => {});
-  }, [isAuthed]);
+    if (!isAuthed) {
+      push('auth');
+      return;
+    }
+    loadRooms();
+    const timer = window.setInterval(loadRooms, 8000);
+    const onFocus = () => loadRooms();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [isAuthed, loadRooms, push]);
 
   return (
     <>
-      <header className="seed-header"><h1 style={{ paddingRight: 0 }}>{t('messages')}</h1></header>
-      <div className="stack-content">
-        {rooms.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 60, color: 'var(--seed-gray-600)' }}>
-            <div style={{ fontSize: '3rem' }}>💬</div><p>{t('no_messages')}</p>
+      <header className="seed-header chat-top"><h1>{t('messages')}</h1></header>
+      <div className="stack-content chat-page">
+        {loading ? (
+          <div className="chat-loading">{t('loading')}</div>
+        ) : rooms.length === 0 ? (
+          <div className="chat-empty">
+            <div className="chat-empty-ico">💬</div>
+            <h2>{t('no_messages')}</h2>
+            <p>{t('chat_empty_hint')}</p>
+            <button type="button" className="seed-btn seed-btn-carrot" onClick={() => push('items')}>
+              {t('browse_to_chat')}
+            </button>
           </div>
-        ) : rooms.map(r => (
-          <div key={r.id} onClick={() => push('chat-room', { roomId: r.id })} style={{ display: 'flex', gap: 12, padding: '14px 16px', borderBottom: '1px solid var(--seed-gray-200)', cursor: 'pointer' }}>
-            <div style={{ flex: 1 }}><div style={{ fontWeight: 600 }}>{r.other_name}</div><div style={{ fontSize: '0.8125rem', color: 'var(--seed-gray-600)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.last_message || r.listing_title}</div></div>
-          </div>
-        ))}
+        ) : (
+          rooms.map(r => {
+            const unread = Number(r.unread_count || 0);
+            const when = timeAgo(r.last_message_at || r.created_at) || r.time_ago || '';
+            return (
+              <button
+                key={r.id}
+                type="button"
+                className={`chat-row${unread > 0 ? ' unread' : ''}`}
+                onClick={() => push('chat-room', { roomId: r.id })}
+              >
+                <div className="chat-thumb">
+                  {r.listing_image
+                    ? <img src={r.listing_image} alt="" />
+                    : <span>{r.is_job ? '💼' : '💬'}</span>}
+                </div>
+                <div className="chat-body">
+                  <div className="chat-row-top">
+                    <span className="chat-name">{r.other_name}</span>
+                    <span className="chat-time">{when}</span>
+                  </div>
+                  <div className="chat-listing">
+                    {r.is_job ? t('chat_job_thread') : dealLabel(r)}
+                    {r.listing_title ? ` · ${r.listing_title}` : ''}
+                  </div>
+                  <div className="chat-meta">
+                    <span className="chat-preview">{r.last_message || r.listing_title}</span>
+                    {unread > 0 && <span className="chat-badge">{unread > 99 ? '99+' : unread}</span>}
+                  </div>
+                </div>
+                <span className="chat-chev">›</span>
+              </button>
+            );
+          })
+        )}
       </div>
       <MiniNav active="chat" />
     </>
@@ -718,36 +947,234 @@ export function ChatPage() {
 }
 
 export function ChatRoomPage({ roomId }: { roomId?: number }) {
-  const { t } = useLang();
-  const [messages, setMessages] = useState<{ content: string; is_mine: boolean }[]>([]);
+  const { t, timeAgo } = useLang();
+  const { push, replace, pop, canGoBack } = useStack();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [room, setRoom] = useState<ChatRoom | null>(null);
   const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [emojiCat, setEmojiCat] = useState(0);
+  const bubblesRef = useRef<HTMLDivElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const composerRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToBottom = useCallback(() => {
+    requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    });
+  }, []);
+
+  const loadMessages = useCallback(async (opts?: { quiet?: boolean }) => {
+    if (!roomId) return;
+    try {
+      const d = await api.messages(roomId);
+      setMessages(d.messages || []);
+      if (d.room) setRoom(d.room as ChatRoom);
+      if (!opts?.quiet) scrollToBottom();
+    } catch {
+      /* keep existing thread on blip */
+    }
+  }, [roomId, scrollToBottom]);
 
   useEffect(() => {
-    api.messages(roomId!).then(d => setMessages(d.messages)).catch(() => {});
-  }, [roomId]);
+    if (!roomId) {
+      replace('chat');
+      return;
+    }
+    void loadMessages();
+    const timer = window.setInterval(() => { void loadMessages({ quiet: true }); }, 3500);
+    const onFocus = () => { void loadMessages({ quiet: true }); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [roomId, loadMessages, replace]);
 
-  const send = async () => {
-    if (!text.trim()) return;
-    await api.sendMessage(roomId!, text);
-    setText('');
-    api.messages(roomId!).then(d => setMessages(d.messages));
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages.length, scrollToBottom]);
+
+  useEffect(() => {
+    if (!emojiOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      const el = composerRef.current;
+      if (el && !el.contains(e.target as Node)) setEmojiOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [emojiOpen]);
+
+  const goBack = () => {
+    if (canGoBack) pop();
+    else replace('chat');
   };
 
+  const insertEmoji = (emoji: string) => {
+    const input = inputRef.current;
+    const start = input?.selectionStart ?? text.length;
+    const end = input?.selectionEnd ?? text.length;
+    const next = text.slice(0, start) + emoji + text.slice(end);
+    setText(next);
+    requestAnimationFrame(() => {
+      if (!input) return;
+      input.focus();
+      const pos = start + emoji.length;
+      input.setSelectionRange(pos, pos);
+    });
+  };
+
+  const send = async () => {
+    const body = text.trim();
+    if (!body || !roomId || sending) return;
+    setSending(true);
+    setEmojiOpen(false);
+    try {
+      const d = await api.sendMessage(roomId, body);
+      setText('');
+      if (d.message) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === d.message.id)) return prev;
+          return [...prev, d.message];
+        });
+      } else {
+        await loadMessages();
+      }
+      scrollToBottom();
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const title = room?.other_name || t('messages');
+  const sub = room?.is_job
+    ? `${t('chat_job_thread')}${room.listing_title ? ` · ${room.listing_title}` : ''}`
+    : (room?.listing_title || t('chat_waiting_reply'));
+  const activeEmojis = CHAT_EMOJI_CATEGORIES[emojiCat]?.emojis || CHAT_EMOJI_CATEGORIES[0].emojis;
+
   return (
-    <>
-      <Header title={t('messages')} back />
-      <div className="stack-content" style={{ display: 'flex', flexDirection: 'column', background: 'var(--seed-gray-100)' }}>
-        <div style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto' }}>
-          {messages.map((m, i) => (
-            <div key={i} style={{ alignSelf: m.is_mine ? 'flex-end' : 'flex-start', maxWidth: '75%', padding: '10px 14px', borderRadius: 16, background: m.is_mine ? 'var(--seed-carrot)' : 'white', color: m.is_mine ? 'white' : 'inherit', border: m.is_mine ? 'none' : '1px solid var(--seed-gray-200)' }}>{m.content}</div>
-          ))}
+    <div className="chat-room-shell">
+      <header className="seed-header chat-room-header">
+        <button type="button" className="seed-back" onClick={goBack} aria-label="Back">←</button>
+        <div className="chat-room-heading">
+          <h1>{title}</h1>
+          {room && <p>{sub}</p>}
         </div>
-        <div style={{ padding: '10px 12px', borderTop: '1px solid var(--seed-gray-200)', display: 'flex', gap: 8, background: 'white' }}>
-          <input className="seed-input" style={{ flex: 1, borderRadius: 22 }} value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder={t('type_message')} />
-          <button onClick={send} style={{ width: 40, height: 40, background: 'var(--seed-carrot)', color: 'white', borderRadius: '50%' }}>➤</button>
+      </header>
+      <div className="stack-content chat-room-page">
+        {room && (
+          <button
+            type="button"
+            className="chat-room-item"
+            onClick={() => room.listing_id && push('detail', { id: room.listing_id })}
+          >
+            <div className="chat-room-item-thumb">
+              {room.listing_image
+                ? <img src={room.listing_image} alt="" />
+                : <span>{room.is_job ? '💼' : '📦'}</span>}
+            </div>
+            <div className="chat-room-item-copy">
+              <div className="chat-room-item-title">{room.listing_title || sub}</div>
+              {room.price_formatted && !room.is_job && (
+                <div className="chat-room-item-price">{room.price_formatted}</div>
+              )}
+              {room.is_job && <div className="chat-room-item-tag">{t('chat_job_thread')}</div>}
+            </div>
+          </button>
+        )}
+
+        <div className="chat-bubbles" ref={bubblesRef} onClick={() => setEmojiOpen(false)}>
+          {messages.length === 0 ? (
+            <div className="chat-empty-inline">{t('chat_empty_thread')}</div>
+          ) : (
+            messages.map(m => {
+              const seen = m.is_mine && Number(m.is_read) === 1;
+              const when = timeAgo(m.created_at) || m.time_ago || '';
+              return (
+                <div key={m.id} className={`chat-bubble${m.is_mine ? ' mine' : ''}`}>
+                  <div className="chat-bubble-text">{m.content}</div>
+                  <div className="chat-bubble-time">
+                    {when}
+                    {m.is_mine && (
+                      <span className={`chat-read-status${seen ? ' is-seen' : ''}`}>
+                        {' · '}{seen ? t('chat_seen') : t('chat_sent')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        <div className="chat-composer-wrap" ref={composerRef}>
+          {emojiOpen && (
+            <div className="chat-emoji-panel" role="dialog" aria-label={t('chat_emoji')}>
+              <div className="chat-emoji-cats">
+                {CHAT_EMOJI_CATEGORIES.map((cat, i) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    className={`chat-emoji-cat${i === emojiCat ? ' active' : ''}`}
+                    onClick={() => setEmojiCat(i)}
+                    aria-label={cat.id}
+                  >
+                    {cat.icon}
+                  </button>
+                ))}
+              </div>
+              <div className="chat-emoji-grid">
+                {activeEmojis.map((emo, i) => (
+                  <button
+                    key={`${emojiCat}-${i}-${emo}`}
+                    type="button"
+                    className="chat-emoji-btn"
+                    onClick={() => insertEmoji(emo)}
+                  >
+                    {emo}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="chat-composer">
+            <button
+              type="button"
+              className={`chat-emoji-toggle${emojiOpen ? ' open' : ''}`}
+              onClick={() => setEmojiOpen(v => !v)}
+              aria-label={t('chat_emoji')}
+              aria-expanded={emojiOpen}
+            >
+              😊
+            </button>
+            <input
+              ref={inputRef}
+              className="seed-input chat-input"
+              value={text}
+              onChange={e => setText(e.target.value)}
+              onFocus={() => setEmojiOpen(false)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void send();
+                }
+              }}
+              placeholder={t('type_message')}
+            />
+            <button type="button" className="chat-send" onClick={() => { void send(); }} disabled={sending || !text.trim()}>
+              ➤
+            </button>
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 

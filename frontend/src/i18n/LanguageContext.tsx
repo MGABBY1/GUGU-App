@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, useEffect, ReactNode } from 'react';
 import { Lang, LANG_META, TranslationKey, translate, BRAND_NAME, APP_NAME } from './translations';
 import {
   formatPriceLocalized,
@@ -15,10 +15,16 @@ function readLang(): Lang {
   return 'rw';
 }
 
+function applyHtmlLang(l: Lang): void {
+  try {
+    document.documentElement.lang = l;
+  } catch { /* ignore */ }
+}
+
 type LangCtx = {
   lang: Lang;
   setLang: (l: Lang) => void;
-  t: (key: TranslationKey) => string;
+  t: (key: TranslationKey, vars?: Record<string, string>) => string;
   brand: string;
   appName: string;
   price: (amount: number, isFree?: boolean | number) => string;
@@ -30,7 +36,7 @@ type LangCtx = {
 const LanguageContext = createContext<LangCtx>({
   lang: 'rw',
   setLang: () => {},
-  t: (k) => translate('rw', k),
+  t: (k, vars) => translate('rw', k, vars),
   brand: BRAND_NAME,
   appName: APP_NAME,
   price: (n, free) => formatPriceLocalized(n, !!free, 'rw'),
@@ -42,16 +48,21 @@ const LanguageContext = createContext<LangCtx>({
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(readLang);
 
+  useEffect(() => {
+    applyHtmlLang(lang);
+    localStorage.setItem(STORAGE_KEY, lang);
+  }, [lang]);
+
   const setLang = useCallback((l: Lang) => {
     setLangState(l);
     localStorage.setItem(STORAGE_KEY, l);
-    document.documentElement.lang = l === 'rw' ? 'rw' : l;
+    applyHtmlLang(l);
   }, []);
 
   const value = useMemo<LangCtx>(() => ({
     lang,
     setLang,
-    t: (key) => translate(lang, key),
+    t: (key, vars) => translate(lang, key, vars),
     brand: BRAND_NAME,
     appName: APP_NAME,
     price: (amount, isFree) => formatPriceLocalized(amount, !!isFree, lang),

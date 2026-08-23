@@ -190,5 +190,5 @@ foreach ($accounts as $a) {
     echo '<tr><td>' . htmlspecialchars($a['label']) . '</td><td><code>' . $kind . '</code></td><td><code>' . htmlspecialchars($a['local']) . '</code></td><td><code>' . htmlspecialchars($a['email']) . '</code></td></tr>';
 }
 echo '</table>';
-echo '<p><a href="/gugu-app/app/?login=1">Open login</a> · <a href="/gugu-app/app/">Marketplace</a> · <a href="/gugu-app/migrate_account_model.php">Account model migrate</a></p>';
+echo '<p><a href="/gugu-app/app/?login=1">Open login</a> · <a href="/gugu-app/app/">Marketplace</a> · <a href="/gugu-app/database/migrations/migrate_account_model.php">Account model migrate</a></p>';
 echo '</body></html>';

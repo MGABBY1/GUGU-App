@@ -46,19 +46,29 @@ switch ($action) {
 function getProfile(): void {
     $user = requireAuth();
     $db = getDB();
+    $user = enrichUserFlags($user);
 
-    $stmt = $db->prepare('SELECT COUNT(*) FROM listings WHERE user_id = ? AND status = "active"');
+    $stmt = $db->prepare('SELECT COUNT(*) FROM listings WHERE user_id = ? AND status = "active" AND moderation_status = "approved" AND category_id <> 11');
     $stmt->execute([$user['id']]);
     $user['active_listings'] = (int) $stmt->fetchColumn();
 
-    $stmt = $db->prepare('SELECT COUNT(*) FROM listings WHERE user_id = ? AND status = "sold"');
+    $stmt = $db->prepare('SELECT COUNT(*) FROM listings WHERE user_id = ? AND status = "sold" AND category_id <> 11');
     $stmt->execute([$user['id']]);
     $user['sold_listings'] = (int) $stmt->fetchColumn();
+
+    $stmt = $db->prepare('SELECT COUNT(*) FROM listings WHERE user_id = ? AND status IN ("active","reserved") AND moderation_status IN ("pending","flagged") AND category_id <> 11');
+    $stmt->execute([$user['id']]);
+    $user['pending_listings'] = (int) $stmt->fetchColumn();
+
+    $stmt = $db->prepare('SELECT COUNT(*) FROM listings WHERE user_id = ? AND moderation_status = "rejected" AND category_id <> 11');
+    $stmt->execute([$user['id']]);
+    $user['rejected_listings'] = (int) $stmt->fetchColumn();
 
     $stmt = $db->prepare('SELECT COUNT(*) FROM favorites WHERE user_id = ?');
     $stmt->execute([$user['id']]);
     $user['favorites_count'] = (int) $stmt->fetchColumn();
 
+    unset($user['password_hash']);
     jsonResponse(['success' => true, 'user' => $user]);
 }
 
@@ -70,24 +80,83 @@ function updateProfile(): void {
     $fields = [];
     $params = [];
 
-    foreach (['full_name', 'bio', 'province', 'district', 'sector'] as $field) {
-        if (isset($data[$field])) {
-            $fields[] = "$field = ?";
-            $params[] = trim($data[$field]);
+    // Members can update public nickname, private name, email, bio, place
+    $map = [
+        'nickname' => 'nickname',
+        'full_name' => 'full_name',
+        'real_name' => 'full_name',
+        'email' => 'email',
+        'bio' => 'bio',
+        'province' => 'province',
+        'district' => 'district',
+        'sector' => 'sector',
+    ];
+    foreach ($map as $inKey => $column) {
+        if (!array_key_exists($inKey, $data)) {
+            continue;
+        }
+        $val = trim((string) $data[$inKey]);
+        if ($column === 'email') {
+            if ($val !== '' && !filter_var($val, FILTER_VALIDATE_EMAIL)) {
+        jsonErrorKey('email_invalid');
+            }
+            $fields[] = 'email = ?';
+            $params[] = $val !== '' ? $val : null;
+            continue;
+        }
+        if ($column === 'nickname' && $val === '') {
+            jsonErrorKey('nickname_required');
+        }
+        if ($column === 'nickname' || $column === 'full_name' || $val !== '') {
+            $fields[] = "$column = ?";
+            $params[] = $val !== '' ? $val : null;
         }
     }
 
-    if (empty($fields)) jsonError('Nta makuru yo guhindura');
+    // Auto-fill province from district when district was updated without province.
+    if (array_key_exists('district', $data) && !array_key_exists('province', $data)) {
+        $districtVal = trim((string) $data['district']);
+        if ($districtVal !== '') {
+            $provinceMap = [
+                'Gasabo' => 'Kigali', 'Kicukiro' => 'Kigali', 'Nyarugenge' => 'Kigali',
+                'Burera' => 'Northern Province', 'Gakenke' => 'Northern Province', 'Gicumbi' => 'Northern Province',
+                'Musanze' => 'Northern Province', 'Rulindo' => 'Northern Province',
+                'Gisagara' => 'Southern Province', 'Huye' => 'Southern Province', 'Kamonyi' => 'Southern Province',
+                'Muhanga' => 'Southern Province', 'Nyamagabe' => 'Southern Province', 'Nyanza' => 'Southern Province',
+                'Nyaruguru' => 'Southern Province', 'Ruhango' => 'Southern Province',
+                'Bugesera' => 'Eastern Province', 'Gatsibo' => 'Eastern Province', 'Kayonza' => 'Eastern Province',
+                'Kirehe' => 'Eastern Province', 'Ngoma' => 'Eastern Province', 'Nyagatare' => 'Eastern Province',
+                'Rwamagana' => 'Eastern Province',
+                'Karongi' => 'Western Province', 'Ngororero' => 'Western Province', 'Nyabihu' => 'Western Province',
+                'Nyamasheke' => 'Western Province', 'Rubavu' => 'Western Province', 'Rusizi' => 'Western Province',
+                'Rutsiro' => 'Western Province',
+            ];
+            if (isset($provinceMap[$districtVal])) {
+                $fields[] = 'province = ?';
+                $params[] = $provinceMap[$districtVal];
+            }
+        }
+    }
+
+    if (empty($fields)) {
+        jsonError('Nta makuru yo guhindura');
+    }
 
     $params[] = $user['id'];
-    $db->prepare('UPDATE users SET ' . implode(', ', $fields) . ' WHERE id = ?')->execute($params);
+    try {
+        $db->prepare('UPDATE users SET ' . implode(', ', $fields) . ', updated_at = NOW() WHERE id = ?')->execute($params);
+    } catch (Throwable $e) {
+        // Fallback if updated_at column is missing on older DBs.
+        $db->prepare('UPDATE users SET ' . implode(', ', $fields) . ' WHERE id = ?')->execute($params);
+    }
 
     $stmt = $db->prepare('SELECT * FROM users WHERE id = ?');
     $stmt->execute([$user['id']]);
     $updated = $stmt->fetch();
-    unset($updated['password_hash']);
+    $pub = enrichUserFlags($updated);
+    unset($pub['password_hash']);
 
-    jsonResponse(['success' => true, 'user' => $updated]);
+    jsonResponse(['success' => true, 'user' => $pub, 'message' => 'Profile yahinduwe']);
 }
 
 function getUserProfile(int $userId): void {
@@ -108,7 +177,7 @@ function getUserProfile(int $userId): void {
 
     $stmt = $db->prepare('
         SELECT l.*, 
-               (SELECT image_path FROM listing_images WHERE listing_id = l.id AND is_primary = 1 LIMIT 1) as primary_image
+               (SELECT image_path FROM listing_images WHERE listing_id = l.id ORDER BY is_primary DESC, sort_order ASC, id ASC LIMIT 1) as primary_image
         FROM listings l
         WHERE l.user_id = ? AND l.status = "active"
         ORDER BY l.created_at DESC
@@ -118,7 +187,7 @@ function getUserProfile(int $userId): void {
 
     foreach ($listings as &$l) {
         $l['price_formatted'] = formatPrice((int) $l['price']);
-        if ($l['primary_image']) $l['primary_image'] = UPLOAD_URL . $l['primary_image'];
+        if ($l['primary_image']) $l['primary_image'] = publicUploadUrl($l['primary_image']);
     }
 
     jsonResponse(['success' => true, 'user' => $user, 'listings' => $listings]);
@@ -132,7 +201,7 @@ function handleFavorites(string $method): void {
         $stmt = $db->prepare('
             SELECT l.*, f.created_at as favorited_at,
                    u.full_name as seller_name,
-                   (SELECT image_path FROM listing_images WHERE listing_id = l.id AND is_primary = 1 LIMIT 1) as primary_image
+                   (SELECT image_path FROM listing_images WHERE listing_id = l.id ORDER BY is_primary DESC, sort_order ASC, id ASC LIMIT 1) as primary_image
             FROM favorites f
             JOIN listings l ON l.id = f.listing_id
             JOIN users u ON u.id = l.user_id
@@ -144,7 +213,7 @@ function handleFavorites(string $method): void {
 
         foreach ($favorites as &$f) {
             $f['price_formatted'] = formatPrice((int) $f['price']);
-            if ($f['primary_image']) $f['primary_image'] = UPLOAD_URL . $f['primary_image'];
+            if ($f['primary_image']) $f['primary_image'] = publicUploadUrl($f['primary_image']);
         }
 
         jsonResponse(['success' => true, 'favorites' => $favorites]);

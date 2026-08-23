@@ -8,7 +8,11 @@ import DetailPage, { ProfilePage, NeighborhoodPage, ChatPage, ChatRoomPage, Favo
 import { ServicesHubPage, RecentlyViewedPage, BenefitsPage } from './pages/ServicePages';
 import { JobsPage, PostJobPage } from './pages/JobsPage';
 import DashboardPage from './pages/DashboardPage';
+import SettingsPage from './pages/SettingsPage';
+import AccountPage from './pages/AccountPage';
+import MyListingsPage from './pages/MyListingsPage';
 import { StaffControlBar } from './components/StaffControlBar';
+import { MemberIdGate } from './components/MemberIdGate';
 import { ReactNode } from 'react';
 
 const screens: Record<string, (params?: Record<string, unknown>) => ReactNode> = {
@@ -19,7 +23,10 @@ const screens: Record<string, (params?: Record<string, unknown>) => ReactNode> =
   sell: () => <SellPage />,
   detail: (p) => <DetailPage id={p?.id as number} />,
   profile: () => <ProfilePage />,
+  settings: () => <SettingsPage />,
+  account: () => <AccountPage />,
   dashboard: () => <DashboardPage />,
+  'my-listings': () => <MyListingsPage />,
   neighborhood: () => <NeighborhoodPage />,
   chat: () => <ChatPage />,
   'chat-room': (p) => <ChatRoomPage roomId={p?.roomId as number} />,
@@ -65,6 +72,7 @@ export default function App() {
           <StackProvider initial={start.name} initialParams={start.params}>
             <div className="app-frame">
               <StaffControlBar />
+              <MemberIdGate />
               <StackNavigator screens={screens} />
             </div>
           </StackProvider>

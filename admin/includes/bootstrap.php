@@ -22,7 +22,7 @@ function adminRequireLogin(): void {
 
 function adminRoleLabel(int $roleId): string {
     return match ($roleId) {
-        1 => 'System Administrator (Super Admin)',
+        1 => 'Admin',
         2 => 'District Manager',
         3 => 'Moderator / Support',
         4 => 'Member',

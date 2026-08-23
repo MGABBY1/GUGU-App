@@ -3,10 +3,12 @@ import {
   api, AdminOverview, AdminListingRow, AdminReportRow, User,
 } from '../api/client';
 import { toast } from '../components/AuthContext';
+import { useLang } from '../i18n/LanguageContext';
 import { DashStatCards, DashSection, DashEmpty, StatusPill, RoleDuties } from './shared/DashWidgets';
 
 /** Moderator / Support — Trust & Safety portal */
 export default function ModeratorSupportDashboard({ user }: { user: User }) {
+  const { t } = useLang();
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [listings, setListings] = useState<AdminListingRow[]>([]);
   const [reports, setReports] = useState<AdminReportRow[]>([]);
@@ -73,15 +75,15 @@ export default function ModeratorSupportDashboard({ user }: { user: User }) {
     }
   };
 
-  if (loading && !overview) return <div className="dash-loading">Loading Trust &amp; Safety Desk…</div>;
+  if (loading && !overview) return <div className="dash-loading">{t('loading')}</div>;
 
   return (
     <div className="dash-body">
       <div className="dash-banner dash-banner-support">
         <div>
-          <div className="dash-banner-role">Moderator / Support</div>
-          <h2>Trust &amp; Safety Desk</h2>
-          <p>Flagged Gurisha · support tickets · fraud bans · {user.nickname}</p>
+          <div className="dash-banner-role">{t('role_moderator')}</div>
+          <h2>{t('dash_moderator_title')}</h2>
+          <p>{user.nickname}</p>
         </div>
       </div>
 

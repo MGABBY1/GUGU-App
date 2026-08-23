@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useStack } from '../stack/Stackflow';
 import { useAuth, toast } from '../components/AuthContext';
-import { api, Listing, Category, CATEGORY_ICONS, AUTH_HOME_EVENT, isMemberUser } from '../api/client';
+import { api, Listing, Category, CATEGORY_ICONS, AUTH_HOME_EVENT, isMemberUser, identityTitle } from '../api/client';
 import { BottomNav } from '../components/BottomNav';
 import { IdentityBadge } from '../components/IdentityBadge';
 import { LocationSheet } from '../components/LocationSheet';
@@ -279,7 +279,7 @@ export default function HomePage() {
               <LanguageSwitcher compact />
               {isAuthed ? (
                 <button type="button" className="market-profile-btn" onClick={goMe} aria-label={t('nav_profile')}>
-                  {user?.nickname?.[0] || user?.full_name?.[0] || '👤'}
+                  {identityTitle(user)?.[0] || user?.nickname?.[0] || user?.full_name?.[0] || '👤'}
                 </button>
               ) : (
                 <button type="button" className="market-login-btn" onClick={() => resetTo('auth')}>{t('login')}</button>
@@ -336,7 +336,7 @@ export default function HomePage() {
 
         {isAuthed && user ? (
           <div className="market-welcome">
-            <span>👋 {t('welcome')}, <strong>{user?.nickname || user?.full_name?.split(' ')[0]}</strong>!</span>
+            <span>👋 {t('welcome')}, <strong>{identityTitle(user) || user?.nickname || user?.full_name?.split(' ')[0]}</strong>!</span>
             <span className="market-welcome-sub">{t('welcome_sub')}</span>
           </div>
         ) : (
@@ -401,7 +401,7 @@ export default function HomePage() {
                 <i style={{ background: '#20603D' }} />
               </span>
               <strong>{BRAND_NAME}</strong>
-              <em>Jobs</em>
+              <em>{t('jobs_brand_em')}</em>
             </div>
             <div className="market-jobs-banner-copy">
               <h2>{t('jobs_home_badge')}</h2>
@@ -495,11 +495,14 @@ export default function HomePage() {
                 className="product-card market-card"
                 onClick={() => push('detail', { id: l.id })}
               >
-                <div className="card-img market-card-img">
+                <div className={`card-img market-card-img${l.status === 'sold' ? ' is-sold' : ''}`}>
                   {l.primary_image ? (
                     <img src={l.primary_image} alt={l.title} loading="lazy" />
                   ) : (
                     <div className="market-card-placeholder">📦</div>
+                  )}
+                  {l.status === 'sold' && (
+                    <span className="sold-badge-card">{t('sold_badge')}</span>
                   )}
                   {(l.like_count ?? 0) > 0 && (
                     <span className="market-card-likes">❤️ {l.like_count}</span>

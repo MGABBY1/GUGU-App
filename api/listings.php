@@ -21,7 +21,11 @@ switch ($method) {
         }
         break;
     case 'POST':
-        createListing();
+        if (!empty($_GET['action']) && $_GET['action'] === 'add-images' && $id) {
+            addListingImages($id);
+        } else {
+            createListing();
+        }
         break;
     case 'PUT':
         if (!$id) jsonError('Listing ID required');
@@ -43,20 +47,25 @@ function getListings(): void {
     $limit = min(50, max(1, (int) ($_GET['limit'] ?? 20)));
     $offset = ($page - 1) * $limit;
 
-    $where = ['l.status = "active"'];
+    $where = ["l.status IN ('active','sold')"];
     $params = [];
 
     // Public feed: only Admin-approved posts (pending wait for payment + approval)
+    // Sold stays visible with a Sold badge (Karrot-style).
     // include_own_pending: approved for everyone + my pending/flagged (Jobs portal etc.)
     $mineOnly = !empty($_GET['mine']) || !empty($_GET['include_pending']);
     $includeOwnPending = !empty($_GET['include_own_pending']) && $user;
     $ownerId = $user ? (int) $user['id'] : 0;
 
-    if ($includeOwnPending) {
+    if ($mineOnly) {
+        if (!$user) {
+            jsonError('Login required', 401);
+        }
+        // Owner tracker: all of my posts (waiting / live / sold / rejected)
+        $where = ["l.status IN ('active','sold','reserved')", 'l.user_id = ?'];
+        $params = [$ownerId];
+    } elseif ($includeOwnPending) {
         $where[] = '(l.moderation_status = "approved" OR (l.user_id = ? AND l.moderation_status IN ("pending","flagged")))';
-        $params[] = $ownerId;
-    } elseif ($mineOnly && $user) {
-        $where[] = 'l.user_id = ?';
         $params[] = $ownerId;
     } else {
         $where[] = 'l.moderation_status = "approved"';
@@ -165,7 +174,7 @@ function getListings(): void {
                  COALESCE(NULLIF(u.sector, ''), u.district)
                ) as seller_display,
                c.name_rw as category_name, c.name_rw as category_name_rw, c.name_en as category_name_en, c.icon as category_icon,
-               (SELECT image_path FROM listing_images WHERE listing_id = l.id AND is_primary = 1 LIMIT 1) as primary_image
+               (SELECT image_path FROM listing_images WHERE listing_id = l.id ORDER BY is_primary DESC, sort_order ASC, id ASC LIMIT 1) as primary_image
         FROM listings l
         JOIN users u ON u.id = l.user_id
         JOIN categories c ON c.id = l.category_id
@@ -181,7 +190,7 @@ function getListings(): void {
         $listing['price_formatted'] = formatPrice((int) $listing['price']);
         $listing['time_ago'] = timeAgo($listing['created_at']);
         if ($listing['primary_image']) {
-            $listing['primary_image'] = UPLOAD_URL . $listing['primary_image'];
+            $listing['primary_image'] = publicUploadUrl($listing['primary_image']);
         }
         if ($user) {
             $favStmt = $db->prepare('SELECT id FROM favorites WHERE user_id = ? AND listing_id = ?');
@@ -251,7 +260,7 @@ function getListing(int $id): void {
     $imgStmt->execute([$id]);
     $images = $imgStmt->fetchAll();
     foreach ($images as &$img) {
-        $img['url'] = UPLOAD_URL . $img['image_path'];
+        $img['url'] = publicUploadUrl($img['image_path'] ?? '');
     }
 
     $listing['images'] = $images;
@@ -273,7 +282,8 @@ function getListing(int $id): void {
     }
 
     // Phone only for logged-in members on Jobs (Contact button). Hide on marketplace items.
-    $isJob = (int) ($listing['category_id'] ?? 0) === 11;
+    $isJob = (($listing['business_type'] ?? '') === 'job')
+        || (int) ($listing['category_id'] ?? 0) === guguJobCategoryId();
     if (!$user || !$isJob) {
         unset($listing['seller_phone']);
     }
@@ -284,6 +294,7 @@ function getListing(int $id): void {
 function createListing(): void {
     try {
         $user = requireAuth();
+        requireMemberIdApproved($user);
         $db = getDB();
 
         $title = trim($_POST['title'] ?? '');
@@ -329,12 +340,13 @@ function createListing(): void {
         }
 
         $feeAck = isset($_POST['fee_acknowledged']) && ($_POST['fee_acknowledged'] === '1' || $_POST['fee_acknowledged'] === 'true');
-        $fee = (int) GUGU_ANNOUNCE_FEE_RWF;
+        $businessType = guguBusinessTypeFromCategory((int) $categoryId);
+        $fee = guguAnnounceFeeForBusiness($businessType);
 
-        // Members must acknowledge the 1000 RWF announce fee
+        // Members must acknowledge the announce fee (separate for Items vs Jobs)
         if (!$isStaff && !$feeAck) {
             jsonError(
-                'Pay ' . $fee . ' RWF announce fee (MoMo ' . GUGU_MOMO_NUMBER . '), then Admin will approve your post.',
+                'Pay ' . $fee . ' RWF ' . guguBusinessLabel($businessType) . ' announce fee (MoMo ' . GUGU_MOMO_NUMBER . '), then Admin will approve your post.',
                 400
             );
         }
@@ -345,51 +357,53 @@ function createListing(): void {
 
         $stmt = $db->prepare('
             INSERT INTO listings (
-                user_id, category_id, title, description, price, is_free,
+                user_id, category_id, business_type, title, description, price, is_free,
                 province, district, sector, moderation_status,
                 announce_fee_rwf, payment_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ');
         $stmt->execute([
-            $user['id'], $categoryId, $title, $description, $price,
+            $user['id'], $categoryId, $businessType, $title, $description, $price,
             $isFree ? 1 : 0, $province, $district, $sector !== '' ? $sector : null,
             $moderation, $fee, $paymentStatus,
         ]);
         $listingId = (int) $db->lastInsertId();
 
-        // Accept both images[] and images field names from FormData
-        $files = $_FILES['images'] ?? null;
-        if ($files === null && !empty($_FILES)) {
-            foreach ($_FILES as $key => $val) {
-                if (str_starts_with($key, 'images')) {
-                    $files = $val;
-                    break;
-                }
+        $uploadFiles = collectListingUploadFiles();
+        $savedImages = 0;
+        $uploadErrors = 0;
+
+        foreach ($uploadFiles as $i => $file) {
+            if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_INI_SIZE
+                || ($file['error'] ?? 0) === UPLOAD_ERR_FORM_SIZE
+                || ((int) ($file['size'] ?? 0) > MAX_UPLOAD_SIZE)) {
+                $uploadErrors++;
+                continue;
+            }
+            if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                $uploadErrors++;
+                continue;
+            }
+            $filename = handleImageUpload($file);
+            if ($filename) {
+                $db->prepare('
+                    INSERT INTO listing_images (listing_id, image_path, is_primary, sort_order)
+                    VALUES (?, ?, ?, ?)
+                ')->execute([$listingId, $filename, $savedImages === 0 ? 1 : 0, $savedImages]);
+                $savedImages++;
+            } else {
+                $uploadErrors++;
             }
         }
 
-        if (!empty($files) && is_array($files)) {
-            $count = is_array($files['name'] ?? null) ? count($files['name']) : (isset($files['name']) ? 1 : 0);
-
-            for ($i = 0; $i < $count; $i++) {
-                $file = is_array($files['name']) ? [
-                    'name' => $files['name'][$i],
-                    'type' => $files['type'][$i],
-                    'tmp_name' => $files['tmp_name'][$i],
-                    'error' => $files['error'][$i],
-                    'size' => $files['size'][$i]
-                ] : $files;
-
-                if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) continue;
-
-                $filename = handleImageUpload($file);
-                if ($filename) {
-                    $db->prepare('
-                        INSERT INTO listing_images (listing_id, image_path, is_primary, sort_order)
-                        VALUES (?, ?, ?, ?)
-                    ')->execute([$listingId, $filename, $i === 0 ? 1 : 0, $i]);
-                }
+        // Items must have at least one photo so Admin / market can show the product
+        $isJobPost = ((int) $categoryId === guguJobCategoryId()) || $businessType === 'job';
+        if (!$isJobPost && $savedImages === 0) {
+            $db->prepare('DELETE FROM listings WHERE id = ? AND user_id = ?')->execute([$listingId, $user['id']]);
+            if ($uploadErrors > 0 || count($uploadFiles) > 0) {
+                jsonError('Photo upload failed. Use JPG/PNG/WebP under 12MB and try again.', 400);
             }
+            jsonError('Add at least one photo of the item before posting.', 400);
         }
 
         jsonResponse([
@@ -404,6 +418,7 @@ function createListing(): void {
             'momo_number' => GUGU_MOMO_NUMBER,
             'momo_name' => GUGU_MOMO_NAME,
             'pending_approval' => !$isStaff,
+            'image_count' => $savedImages,
         ], 201);
     } catch (Throwable $e) {
         jsonError('Ntibyakunze gushyira igicuruzwa: ' . $e->getMessage(), 500);
@@ -417,12 +432,14 @@ function updateListing(int $id): void {
 
     $stmt = $db->prepare('SELECT * FROM listings WHERE id = ? AND user_id = ?');
     $stmt->execute([$id, $user['id']]);
-    if (!$stmt->fetch()) {
+    $listing = $stmt->fetch();
+    if (!$listing) {
         jsonError('Ntushobora guhindura iki gicuruzwa', 403);
     }
 
     $fields = [];
     $params = [];
+    $newStatus = null;
 
     if (isset($data['title'])) {
         $fields[] = 'title = ?';
@@ -436,9 +453,10 @@ function updateListing(int $id): void {
         $fields[] = 'price = ?';
         $params[] = (int) $data['price'];
     }
-    if (isset($data['status']) && in_array($data['status'], ['active', 'reserved', 'sold'])) {
+    if (isset($data['status']) && in_array($data['status'], ['active', 'reserved', 'sold'], true)) {
         $fields[] = 'status = ?';
         $params[] = $data['status'];
+        $newStatus = $data['status'];
     }
     if (isset($data['category_id'])) {
         $fields[] = 'category_id = ?';
@@ -452,7 +470,75 @@ function updateListing(int $id): void {
     $params[] = $id;
     $db->prepare('UPDATE listings SET ' . implode(', ', $fields) . ' WHERE id = ?')->execute($params);
 
-    jsonResponse(['success' => true, 'message' => 'Byahinduwe neza']);
+    $message = 'Updated';
+    if ($newStatus === 'sold') {
+        $message = 'Marked as sold';
+    } elseif ($newStatus === 'active') {
+        $message = 'Listed again for sale';
+    }
+
+    jsonResponse([
+        'success' => true,
+        'message' => $message,
+        'status' => $newStatus ?: ($listing['status'] ?? 'active'),
+    ]);
+}
+
+function addListingImages(int $id): void {
+    $user = requireAuth();
+    $db = getDB();
+
+    $stmt = $db->prepare('SELECT id, user_id, category_id, business_type FROM listings WHERE id = ? AND user_id = ?');
+    $stmt->execute([$id, $user['id']]);
+    $listing = $stmt->fetch();
+    if (!$listing) {
+        jsonError('Listing not found', 404);
+    }
+
+    $uploadFiles = collectListingUploadFiles();
+    if (!$uploadFiles) {
+        jsonError('Add at least one photo (JPG, PNG, or WebP).', 400);
+    }
+
+    $countStmt = $db->prepare('SELECT COUNT(*) FROM listing_images WHERE listing_id = ?');
+    $countStmt->execute([$id]);
+    $existing = (int) $countStmt->fetchColumn();
+
+    $saved = 0;
+    foreach ($uploadFiles as $file) {
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            continue;
+        }
+        $filename = handleImageUpload($file);
+        if (!$filename) {
+            continue;
+        }
+        $db->prepare('
+            INSERT INTO listing_images (listing_id, image_path, is_primary, sort_order)
+            VALUES (?, ?, ?, ?)
+        ')->execute([
+            $id,
+            $filename,
+            $existing + $saved === 0 ? 1 : 0,
+            $existing + $saved,
+        ]);
+        $saved++;
+    }
+
+    if ($saved === 0) {
+        jsonError('Photo upload failed. Use JPG/PNG/WebP under 12MB.', 400);
+    }
+
+    $imgStmt = $db->prepare('SELECT image_path FROM listing_images WHERE listing_id = ? ORDER BY is_primary DESC, sort_order ASC, id ASC LIMIT 1');
+    $imgStmt->execute([$id]);
+    $primary = (string) ($imgStmt->fetchColumn() ?: '');
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Photos saved',
+        'image_count' => $existing + $saved,
+        'primary_image' => publicUploadUrl($primary),
+    ]);
 }
 
 function deleteListing(int $id): void {
@@ -473,5 +559,5 @@ function deleteListing(int $id): void {
     }
 
     $db->prepare('DELETE FROM listings WHERE id = ?')->execute([$id]);
-    jsonResponse(['success' => true, 'message' => 'Igicuruzwa cyasibwe']);
+    jsonResponse(['success' => true, 'message' => 'Post deleted']);
 }

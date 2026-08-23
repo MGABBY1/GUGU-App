@@ -6,17 +6,18 @@
 function guguManagementRoles(): array {
     return [
         1 => [
-            'role' => 'System Administrator (Super Admin)',
+            'role' => 'Admin',
             'workspace' => 'System Control Center',
-            'kicker' => 'Super Admin · Global (platform owner)',
+            'kicker' => 'Admin · Full system control',
             'responsibilities' => [
-                'Approve items & jobs nationwide — Mark paid → Approve so posts go live',
-                'Confirm MoMo announce fees and reject spam / fake posts',
-                'System Controls — MoMo gateway, announce fee, SMS',
-                'Permissions — create District Managers & Moderators; suspend staff',
+                'Full nationwide control — same power as former Super Admin',
+                'Approve Items (Gurisha) and Jobs (Akazi) in separate queues — Mark paid → Approve',
+                'Confirm MoMo fees separately for Items and Jobs; reject spam / fake posts',
+                'System Controls — MoMo number, announce fees, login SMS (optional locally)',
+                'Permissions — create District Managers & Moderators; suspend or ban accounts',
                 'Financials — track nationwide announce-fee revenue',
                 'Reports & IDs — resolve reports; approve member ID documents',
-                'Open District or Moderator dashboards while keeping Super Admin power',
+                'Open District or Moderator dashboards while keeping Admin power',
             ],
         ],
         2 => [
@@ -24,10 +25,12 @@ function guguManagementRoles(): array {
             'workspace' => 'District Operations Hub',
             'kicker' => 'Role 2 · District Manager',
             'responsibilities' => [
-                'Manage marketplace performance in your Akarere only (Gasabo, Huye, etc.)',
-                'Approve or reject local items & job announcements',
-                'Verify local sellers and confirm local MoMo announce fees',
-                'Handle local reports · activate or suspend local members',
+                'Activate or suspend members (and Moderator / Support) in your Akarere only',
+                'Confirm MoMo, Mark paid, Approve good posts (Admin earns the fee)',
+                'Reject spam / fake listings in your region (Items & Jobs)',
+                'Handle reports that involve local listings or users',
+                'Cannot change Admin / other District Managers',
+                'Cannot ban — escalate bans to Admin',
             ],
         ],
         3 => [
@@ -46,7 +49,7 @@ function guguManagementRoles(): array {
 
 function guguManagementRoleOptions(): array {
     return [
-        1 => 'System Administrator',
+        1 => 'Admin',
         2 => 'District Manager',
         3 => 'Moderator / Support',
         4 => 'Member',

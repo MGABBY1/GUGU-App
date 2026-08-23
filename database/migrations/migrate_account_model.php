@@ -1,10 +1,10 @@
 <?php
 /**
  * Apply GUGU account model:
- * - management (role_id 1–3) vs member (role_id 4)
+ * - management (role_id 1??) vs member (role_id 4)
  * - Buyer/Seller only on listings & chat (not role_id)
  *
- * Run: http://localhost/gugu-app/migrate_account_model.php
+ * Run: http://localhost/gugu-app/database/migrations/migrate_account_model.php
  */
 require_once __DIR__ . '/includes/helpers.php';
 
@@ -51,7 +51,7 @@ $n = $db->exec("
 $msgs[] = "Synced account_kind ({$n} rows)";
 
 // Ensure new OTP users get member role explicitly on future inserts (default already 4)
-$msgs[] = 'Model ready: management (1–3) → portals · member (4) → marketplace · buyer/seller = deal roles';
+$msgs[] = 'Model ready: management (1??) ??portals · member (4) ??marketplace · buyer/seller = deal roles';
 
 echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>GUGU Account Model</title>';
 echo '<style>body{font-family:system-ui;max-width:640px;margin:40px auto;padding:0 16px}li{margin:8px 0}.ok{color:#20603D}</style></head><body>';
@@ -61,12 +61,12 @@ foreach ($msgs as $m) {
 }
 echo '</ul>';
 echo '<p><strong>Flow</strong></p><pre style="background:#F2F3F6;padding:12px;border-radius:8px;font-size:13px">
-Login → users.role_id
-  1 → Super Admin Dashboard
-  2 → Regional Manager portal
-  3 → Moderator / Support portal
-  4 → Member marketplace
-       └─ own listing = Seller · contact seller = Buyer
+Login ??users.role_id
+  1 ??Super Admin Dashboard
+  2 ??Regional Manager portal
+  3 ??Moderator / Support portal
+  4 ??Member marketplace
+       ?��? own listing = Seller · contact seller = Buyer
 </pre>';
 echo '<p><a href="/gugu-app/seed_roles.php">Re-seed demo users</a> · <a href="/gugu-app/app/?login=1">Login</a></p>';
 echo '</body></html>';
