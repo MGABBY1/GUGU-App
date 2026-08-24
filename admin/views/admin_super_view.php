@@ -344,6 +344,7 @@ $idRejected = (int) $idData['rejected'];
 $idQueue = $idData['queue'];
 
 $checklistScope = 'nationwide';
+$checklistRole = 1;
 $roleOptions = guguManagementRoleOptions();
 // Staff edits: only you are Admin (role 1) ? do not assign Admin to others
 $staffAssignOptions = [

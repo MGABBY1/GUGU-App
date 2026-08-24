@@ -24,7 +24,8 @@ $unpaidPending = $countListing('moderation_status IN ("pending","flagged") AND p
 $checklistScope = $district;
 
 $stmt = $db->prepare('
-  SELECT l.id, l.title, l.district, l.moderation_status, l.payment_status, l.announce_fee_rwf, l.user_id, u.nickname
+  SELECT l.id, l.title, l.district, l.moderation_status, l.payment_status, l.announce_fee_rwf, l.user_id,
+         u.nickname, u.email, u.phone
   FROM listings l
   JOIN users u ON u.id = l.user_id
   WHERE l.moderation_status IN ("pending","flagged") AND l.district = ?
@@ -50,6 +51,7 @@ $reports = count($openReports);
 $idData = portalIdVerificationData($db, $district);
 $idPending = (int) $idData['pending'];
 $idQueue = $idData['queue'];
+$checklistRole = 3;
 ?>
 <section class="panel portal-hero portal-hero-support">
   <div class="portal-hero-text">
@@ -88,13 +90,21 @@ $idQueue = $idData['queue'];
     <p class="hint">Queue empty ✅</p>
   <?php else: ?>
   <div class="table-wrap"><table>
-    <thead><tr><th>ID</th><th>Title</th><th>Seller</th><th>District</th><th>Status</th><th>Actions</th></tr></thead>
+    <thead><tr><th>ID</th><th>Title</th><th>Member</th><th>Email</th><th>District</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody>
-    <?php foreach ($queue as $l): ?>
+    <?php foreach ($queue as $l):
+      $sellerEmail = trim((string) ($l['email'] ?? ''));
+    ?>
       <tr>
         <td>#<?= (int)$l['id'] ?></td>
         <td><?= htmlspecialchars($l['title']) ?></td>
-        <td><?= htmlspecialchars($l['nickname'] ?: '—') ?></td>
+        <td>
+          <?= htmlspecialchars($l['nickname'] ?: '—') ?>
+          <?php if (!empty($l['phone'])): ?>
+            <br><small class="muted"><?= htmlspecialchars((string) $l['phone']) ?></small>
+          <?php endif; ?>
+        </td>
+        <td><?= $sellerEmail !== '' ? htmlspecialchars($sellerEmail) : '<span class="muted">—</span>' ?></td>
         <td><?= htmlspecialchars($l['district']) ?></td>
         <td>
           <span class="status-pill"><?= htmlspecialchars($l['moderation_status']) ?></span>

@@ -98,6 +98,7 @@ $stmt->execute([$district, $district]);
 $localReports = (int) $stmt->fetchColumn();
 $reports = $localReports;
 $checklistScope = $district;
+$checklistRole = 2;
 
 $reportDistrictSql = '
   FROM reports r

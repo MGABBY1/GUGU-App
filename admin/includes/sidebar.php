@@ -80,9 +80,11 @@ if ($role_id === 2 || $role_id === 3) {
       <a href="<?= htmlspecialchars($paneHref('escalate')) ?>"><strong>Escalate / limits</strong></a>
       <a href="<?= htmlspecialchars($marketplaceHref) ?>">Marketplace</a>
     <?php elseif ($role_id === 3): ?>
-      <a href="<?= $base ?>?<?= $viewQs ?>pane=home">Dashboard</a>
-      <a href="<?= $base ?>?<?= htmlspecialchars($viewQs) ?>#listings">Flagged queue</a>
-      <a href="<?= $base ?>?<?= htmlspecialchars($viewQs) ?>#id-queue">ID verification</a>
+      <a href="<?= htmlspecialchars($paneHref('home')) ?>">Dashboard</a>
+      <a href="<?= htmlspecialchars($paneHref('home')) ?>#checklist"><strong>Daily routine</strong></a>
+      <a href="<?= htmlspecialchars($paneHref('home')) ?>#listings">Flagged queue</a>
+      <a href="<?= htmlspecialchars($paneHref('home')) ?>#id-queue">ID verification</a>
+      <a href="<?= htmlspecialchars($paneHref('home')) ?>#reports">Reports</a>
       <a href="<?= htmlspecialchars($marketplaceHref) ?>">Marketplace</a>
     <?php else: ?>
       <a href="/gugu-app/app/">Marketplace</a>
