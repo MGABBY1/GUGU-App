@@ -110,8 +110,8 @@ function portalRedirect(string $pane = ''): void {
             // Map common Admin destinations back into the preview hub.
             if ($preview['role'] === 2 && in_array($pane, ['staff', 'users', 'listings', 'payments', 'system-controls', 'analytics', 'permissions', 'dashboards'], true)) {
                 $pane = $pane === 'listings' ? 'item-approvals' : 'home';
-            } elseif ($preview['role'] === 3 && in_array($pane, ['staff', 'users', 'members', 'payments', 'system-controls'], true)) {
-                $pane = 'home';
+            } elseif ($preview['role'] === 3 && in_array($pane, ['staff', 'users', 'members', 'payments', 'system-controls', 'item-approvals', 'job-approvals'], true)) {
+                $pane = in_array($pane, ['item-approvals', 'job-approvals', 'payments'], true) ? 'listings' : 'home';
             } else {
                 $pane = 'home';
             }

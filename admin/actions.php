@@ -322,6 +322,9 @@ try {
             portalFlash($modStatus === 'approved'
                 ? 'Approved — ' . guguBusinessLabel($biz) . ' post is live'
                 : guguBusinessLabel($biz) . ' listing updated');
+            if ($actorRole === 3) {
+                portalRedirect('listings');
+            }
             portalRedirect($biz === 'job' ? 'job-approvals' : 'item-approvals');
 
         case 'mark-listing-paid':
@@ -391,6 +394,9 @@ try {
                     'auto_publish' => false,
                 ]);
                 portalFlash('Marked as paid (' . $feePaid . ' RWF). Approve to publish.');
+            }
+            if ($actorRole === 3) {
+                portalRedirect('listings');
             }
             portalRedirect($biz === 'job' ? 'job-approvals' : 'item-approvals');
 

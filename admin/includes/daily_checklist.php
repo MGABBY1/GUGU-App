@@ -60,25 +60,27 @@ if ($actualRole === 1 && ($checklistRole === 2 || $checklistRole === 3) && $view
 }
 
 $href = static function (string $paneOrHash) use ($isSupport, $previewQs): string {
-    if ($isSupport) {
-        // Trust & Safety Desk is a single scroll page — use section anchors
-        $map = [
-            'item-approvals' => '#listings',
-            'listings' => '#listings',
-            'payments' => '#listings',
-            'reports' => '#reports',
-            'id-queue' => '#id-queue',
-            'checklist' => '#checklist',
-            'home' => '#checklist',
-        ];
-        $hash = $map[$paneOrHash] ?? ('#' . ltrim($paneOrHash, '#'));
-        $base = '/gugu-app/admin/dashboard.php';
-        if ($previewQs !== '') {
-            return $base . '?' . rtrim($previewQs, '&') . $hash;
-        }
-        return $hash;
-    }
     $pane = ltrim($paneOrHash, '#');
+    if ($isSupport) {
+        $map = [
+            'item-approvals' => 'listings',
+            'listings' => 'listings',
+            'payments' => 'listings',
+            'reports' => 'reports',
+            'id-queue' => 'id-queue',
+            'checklist' => 'checklist',
+            'home' => 'home',
+        ];
+        $pane = $map[$pane] ?? $pane;
+        $base = '/gugu-app/admin/dashboard.php';
+        $qs = $previewQs;
+        if ($pane !== '' && $pane !== 'home') {
+            $qs .= 'pane=' . rawurlencode($pane);
+        } else {
+            $qs = rtrim($qs, '&');
+        }
+        return $qs !== '' ? ($base . '?' . $qs) : $base;
+    }
     if ($pane === '' || $pane === 'home') {
         return '/gugu-app/admin/dashboard.php' . ($previewQs !== '' ? ('?' . rtrim($previewQs, '&')) : '');
     }
@@ -116,8 +118,116 @@ if ($isSupport) {
     $approveDone = 'Caught up';
     $approveTodo = 'Approve now';
 }
+
+$tsChecklistRows = [];
+if ($isSupport) {
+    $tsChecklistRows = [
+        [
+            'num' => 1,
+            'done' => true,
+            'title' => $openStrong,
+            'detail' => $openText,
+            'metric' => $scope,
+            'metric_label' => 'Akarere',
+            'status' => 'Done',
+            'status_class' => 'ok',
+            'action' => null,
+            'action_label' => null,
+            'action_class' => '',
+            'pane' => 'home',
+        ],
+        [
+            'num' => 2,
+            'done' => $doneQueue,
+            'title' => 'Needs review queue',
+            'detail' => 'Check flagged and pending posts waiting for Trust & Safety.',
+            'metric' => (string) $review,
+            'metric_label' => 'Waiting',
+            'status' => $doneQueue ? 'Clear' : 'Check now',
+            'status_class' => $doneQueue ? 'ok' : 'warn',
+            'action' => $href('listings'),
+            'action_label' => $doneQueue ? 'View queue' : 'Open queue',
+            'action_class' => $doneQueue ? 'ok' : 'warn',
+            'pane' => 'listings',
+        ],
+        [
+            'num' => 3,
+            'done' => $donePay,
+            'title' => 'Confirm MoMo payments',
+            'detail' => $unpaidPending . ' unpaid · ' . $fee . ' RWF each · Mark paid after MoMo to '
+                . $momoName . ($momoNum !== '' ? ' (' . $momoNum . ')' : '') . '.',
+            'metric' => (string) $unpaidPending,
+            'metric_label' => 'Unpaid',
+            'status' => $donePay ? 'All paid' : 'Confirm',
+            'status_class' => $donePay ? 'ok' : 'warn',
+            'action' => $href('listings'),
+            'action_label' => $donePay ? 'All paid' : 'Confirm pay',
+            'action_class' => $donePay ? 'ok' : 'warn',
+            'pane' => 'listings',
+        ],
+        [
+            'num' => 4,
+            'done' => $doneApprove,
+            'title' => $approveStrong,
+            'detail' => $approveText,
+            'metric' => (string) $paidPending,
+            'metric_label' => 'Paid ready',
+            'status' => $doneApprove ? 'Caught up' : 'Approve',
+            'status_class' => $doneApprove ? 'ok' : 'warn',
+            'action' => $href('listings'),
+            'action_label' => $doneApprove ? $approveDone : $approveTodo,
+            'action_class' => $doneApprove ? 'ok' : '',
+            'pane' => 'listings',
+        ],
+        [
+            'num' => 5,
+            'done' => $doneQueue,
+            'title' => 'Reject spam / fake posts',
+            'detail' => 'Use Reject on junk, scams, or fake listings in the moderation queue.',
+            'metric' => $doneQueue ? '0' : (string) $review,
+            'metric_label' => 'To review',
+            'status' => $doneQueue ? 'Clear' : 'Review',
+            'status_class' => $doneQueue ? 'ok' : 'danger',
+            'action' => $href('listings'),
+            'action_label' => 'Reject junk',
+            'action_class' => 'danger',
+            'pane' => 'listings',
+        ],
+        [
+            'num' => 6,
+            'done' => $doneReports,
+            'title' => 'Handle open reports',
+            'detail' => 'Resolve or dismiss community flags that apply to ' . $scope . '.',
+            'metric' => (string) $reports,
+            'metric_label' => 'Open',
+            'status' => $doneReports ? 'No reports' : 'Open',
+            'status_class' => $doneReports ? 'ok' : 'warn',
+            'action' => $href('reports'),
+            'action_label' => $doneReports ? 'No reports' : 'Open reports',
+            'action_class' => $doneReports ? 'ok' : 'warn',
+            'pane' => 'reports',
+        ],
+    ];
+    if ($showIdStep) {
+        $tsChecklistRows[] = [
+            'num' => 7,
+            'done' => $doneId,
+            'title' => 'Review ID pending',
+            'detail' => 'Approve or reject member national ID documents in ' . $scope . '.',
+            'metric' => (string) $idPending,
+            'metric_label' => 'Pending',
+            'status' => $doneId ? 'IDs clear' : 'Review',
+            'status_class' => $doneId ? 'ok' : 'warn',
+            'action' => $href('id-queue'),
+            'action_label' => $doneId ? 'IDs clear' : 'Review IDs',
+            'action_class' => $doneId ? 'ok' : 'warn',
+            'pane' => 'id-queue',
+        ];
+    }
+    $tsPendingCount = count(array_filter($tsChecklistRows, static fn($r) => empty($r['done']) && !empty($r['action'])));
+}
 ?>
-<section class="panel daily-checklist<?= $isSupport ? ' daily-checklist-support' : '' ?>" id="checklist">
+<section class="panel daily-checklist<?= $isSupport ? ' daily-checklist-support ts-checklist-panel' : '' ?>" id="checklist">
   <div class="daily-checklist-head">
     <div>
       <span class="portal-kicker daily-kicker">Daily routine</span>
@@ -132,6 +242,107 @@ if ($isSupport) {
   <div class="daily-progress-bar" role="progressbar" aria-valuenow="<?= $pct ?>" aria-valuemin="0" aria-valuemax="100">
     <i style="width:<?= $pct ?>%"></i>
   </div>
+
+  <?php if ($isSupport): ?>
+  <div class="ts-checklist-summary" aria-label="Quick status">
+    <div class="ts-checklist-chip<?= $review > 0 ? ' is-alert' : ' is-ok' ?>">
+      <span>Queue</span><strong><?= $review ?></strong>
+    </div>
+    <div class="ts-checklist-chip<?= $unpaidPending > 0 ? ' is-alert' : ' is-ok' ?>">
+      <span>Unpaid</span><strong><?= $unpaidPending ?></strong>
+    </div>
+    <div class="ts-checklist-chip<?= $paidPending > 0 ? ' is-warn' : ' is-ok' ?>">
+      <span>Paid ready</span><strong><?= $paidPending ?></strong>
+    </div>
+    <div class="ts-checklist-chip<?= $reports > 0 ? ' is-alert' : ' is-ok' ?>">
+      <span>Reports</span><strong><?= $reports ?></strong>
+    </div>
+    <div class="ts-checklist-chip<?= $idPending > 0 ? ' is-alert' : ' is-ok' ?>">
+      <span>ID pending</span><strong><?= $idPending ?></strong>
+    </div>
+  </div>
+
+  <div class="table-wrap ts-checklist-table-wrap">
+    <table class="ts-checklist-table">
+      <thead>
+        <tr>
+          <th scope="col">#</th>
+          <th scope="col">Task</th>
+          <th scope="col">Check</th>
+          <th scope="col">Status</th>
+          <th scope="col">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+      <?php foreach ($tsChecklistRows as $row):
+        $rowKey = 'ts-cl-' . (int) $row['num'];
+        $hasExpand = $isSupport && !empty($row['pane']) && $row['pane'] !== 'home';
+      ?>
+        <tr class="ts-checklist-row<?= !empty($row['done']) ? ' is-done' : ' is-todo' ?><?= $hasExpand ? ' has-expand' : '' ?>"
+            data-checklist-row="<?= htmlspecialchars($rowKey) ?>">
+          <td class="ts-checklist-num">
+            <span class="ts-checklist-step" aria-hidden="true"><?= !empty($row['done']) ? '✓' : (int) $row['num'] ?></span>
+          </td>
+          <td class="ts-checklist-task">
+            <strong><?= htmlspecialchars((string) $row['title']) ?></strong>
+            <p><?= htmlspecialchars((string) $row['detail']) ?></p>
+          </td>
+          <td class="ts-checklist-metric">
+            <span class="ts-checklist-metric-label"><?= htmlspecialchars((string) $row['metric_label']) ?></span>
+            <strong><?= htmlspecialchars((string) $row['metric']) ?></strong>
+          </td>
+          <td class="ts-checklist-status">
+            <span class="ts-checklist-pill is-<?= htmlspecialchars((string) $row['status_class']) ?>">
+              <?= htmlspecialchars((string) $row['status']) ?>
+            </span>
+          </td>
+          <td class="ts-checklist-action">
+            <?php if (!empty($row['action'])): ?>
+              <?php if ($hasExpand): ?>
+                <button type="button" class="btn-sm <?= htmlspecialchars((string) $row['action_class']) ?>"
+                        data-ts-expand="<?= htmlspecialchars((string) $row['pane']) ?>"
+                        data-ts-expand-target="<?= htmlspecialchars($rowKey) ?>"
+                        aria-expanded="false"
+                        aria-controls="<?= htmlspecialchars($rowKey) ?>-panel">
+                  <?= htmlspecialchars((string) $row['action_label']) ?>
+                </button>
+              <?php else: ?>
+                <a class="btn-sm <?= htmlspecialchars((string) $row['action_class']) ?>" href="<?= htmlspecialchars((string) $row['action']) ?>">
+                  <?= htmlspecialchars((string) $row['action_label']) ?>
+                </a>
+              <?php endif; ?>
+            <?php else: ?>
+              <span class="ts-checklist-pill is-ok"><?= htmlspecialchars((string) $row['status']) ?></span>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php if ($hasExpand): ?>
+        <tr class="ts-checklist-expand-row" id="<?= htmlspecialchars($rowKey) ?>-panel" hidden>
+          <td colspan="5">
+            <div class="ts-checklist-expand" data-ts-expand-pane="<?= htmlspecialchars((string) $row['pane']) ?>">
+              <header class="ts-checklist-expand-head">
+                <div>
+                  <span class="ts-checklist-expand-kicker">Step <?= (int) $row['num'] ?> · <?= htmlspecialchars($scopeRaw) ?></span>
+                  <strong><?= htmlspecialchars((string) $row['title']) ?></strong>
+                </div>
+                <button type="button" class="ts-checklist-expand-close" data-ts-expand-close aria-label="Close">Close</button>
+              </header>
+              <div class="ts-checklist-expand-body" data-ts-expand-body></div>
+            </div>
+          </td>
+        </tr>
+        <?php endif; ?>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <?php if ($tsPendingCount === 0): ?>
+    <p class="ts-checklist-foot hint">All routine checks are clear for <?= htmlspecialchars($scope) ?> today.</p>
+  <?php else: ?>
+    <p class="ts-checklist-foot hint"><?= (int) $tsPendingCount ?> step<?= $tsPendingCount === 1 ? '' : 's' ?> still need attention — use the Action column.</p>
+  <?php endif; ?>
+
+  <?php else: ?>
   <ol class="daily-steps">
     <li class="daily-step is-done">
       <span class="daily-check" aria-hidden="true">✓</span>
@@ -197,4 +408,5 @@ if ($isSupport) {
     </li>
     <?php endif; ?>
   </ol>
+  <?php endif; ?>
 </section>

@@ -717,6 +717,281 @@ body.portal-support .panel > h3 { color: #0A4A66; }
 .daily-checklist-support { border-color: #FAD201; }
 .daily-checklist-support .daily-kicker { background: #FFF6D6; color: #5C4A00; }
 .daily-checklist-support .daily-progress strong { color: #20603D; }
+
+/* Trust & Safety checklist — table layout */
+.ts-checklist-panel {
+  background: linear-gradient(180deg, #FFFCF0 0%, #fff 120px);
+}
+.ts-checklist-panel .daily-progress-bar i {
+  background: linear-gradient(90deg, #FAD201, #20603D);
+}
+.ts-checklist-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.ts-checklist-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #E8EEF2;
+  background: #F8FAFC;
+  min-width: 0;
+}
+.ts-checklist-chip span {
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #64748B;
+}
+.ts-checklist-chip strong {
+  font-size: 1.15rem;
+  line-height: 1.1;
+  color: #0F172A;
+}
+.ts-checklist-chip.is-ok {
+  border-color: #B7DFC7;
+  background: #F0FAF4;
+}
+.ts-checklist-chip.is-ok strong { color: #145A32; }
+.ts-checklist-chip.is-warn {
+  border-color: #F0D78C;
+  background: #FFFBEA;
+}
+.ts-checklist-chip.is-warn strong { color: #8A6D00; }
+.ts-checklist-chip.is-alert {
+  border-color: #F5C2C7;
+  background: #FFF5F5;
+}
+.ts-checklist-chip.is-alert strong { color: #B42318; }
+
+.ts-checklist-table-wrap {
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+}
+.ts-checklist-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .8125rem;
+}
+.ts-checklist-table thead th {
+  text-align: left;
+  padding: 11px 14px;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #475569;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+  white-space: nowrap;
+}
+.ts-checklist-table tbody td {
+  padding: 14px;
+  vertical-align: top;
+  border-bottom: 1px solid #EEF2F6;
+}
+.ts-checklist-table tbody tr:last-child td { border-bottom: 0; }
+.ts-checklist-row.is-done { background: #FAFDFB; }
+.ts-checklist-row.is-todo { background: #FFFCF5; }
+.ts-checklist-row.is-todo:hover { background: #FFF8E8; }
+.ts-checklist-num { width: 52px; }
+.ts-checklist-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: .75rem;
+  font-weight: 800;
+  border: 2px solid #CBD5E1;
+  color: #64748B;
+  background: #fff;
+}
+.ts-checklist-row.is-done .ts-checklist-step {
+  background: #20603D;
+  border-color: #20603D;
+  color: #fff;
+}
+.ts-checklist-row.is-todo .ts-checklist-step {
+  border-color: #C9A227;
+  color: #8A6D00;
+}
+.ts-checklist-task strong {
+  display: block;
+  font-size: .875rem;
+  color: #0F172A;
+  margin-bottom: 4px;
+}
+.ts-checklist-task p {
+  margin: 0;
+  font-size: .75rem;
+  color: #64748B;
+  line-height: 1.45;
+  max-width: 420px;
+}
+.ts-checklist-metric {
+  width: 96px;
+  white-space: nowrap;
+}
+.ts-checklist-metric-label {
+  display: block;
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #94A3B8;
+  margin-bottom: 2px;
+}
+.ts-checklist-metric strong {
+  font-size: 1.05rem;
+  color: #0F172A;
+}
+.ts-checklist-row.is-todo .ts-checklist-metric strong { color: #8A6D00; }
+.ts-checklist-row.is-done .ts-checklist-metric strong { color: #145A32; }
+.ts-checklist-status { width: 110px; }
+.ts-checklist-pill {
+  display: inline-block;
+  font-size: .68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  padding: 5px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.ts-checklist-pill.is-ok {
+  background: #E8F5EE;
+  color: #145A32;
+}
+.ts-checklist-pill.is-warn {
+  background: #FFF3C4;
+  color: #8A6D00;
+}
+.ts-checklist-pill.is-danger {
+  background: #FEE4E2;
+  color: #B42318;
+}
+.ts-checklist-action {
+  width: 130px;
+  white-space: nowrap;
+}
+.ts-checklist-action .btn-sm {
+  min-width: 96px;
+  text-align: center;
+}
+.ts-checklist-foot {
+  margin: 12px 2px 0;
+  font-size: .78rem;
+}
+
+@media (max-width: 980px) {
+  .ts-checklist-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .ts-checklist-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ts-checklist-table thead { display: none; }
+  .ts-checklist-table,
+  .ts-checklist-table tbody,
+  .ts-checklist-table tr,
+  .ts-checklist-table td { display: block; width: 100%; }
+  .ts-checklist-table tbody tr {
+    padding: 12px 14px;
+    border-bottom: 1px solid #EEF2F6;
+  }
+  .ts-checklist-table tbody td {
+    padding: 4px 0;
+    border: 0;
+  }
+  .ts-checklist-num { float: left; margin-right: 10px; padding-top: 0; }
+  .ts-checklist-task { overflow: hidden; padding-bottom: 8px; }
+  .ts-checklist-metric,
+  .ts-checklist-status,
+  .ts-checklist-action { padding-left: 42px; }
+  .ts-checklist-action .btn-sm { width: 100%; }
+  .ts-checklist-expand-row { display: block; }
+  .ts-checklist-expand-row td { display: block; padding: 0 !important; border: 0 !important; }
+}
+
+/* Trust & Safety checklist — inline expand panel in table */
+.ts-checklist-row.is-expanded { background: #F0F9FF !important; }
+.ts-checklist-row.is-expanded .ts-checklist-action .btn-sm.is-open {
+  box-shadow: inset 0 0 0 2px rgba(32, 96, 61, 0.35);
+}
+.ts-checklist-expand-row td {
+  padding: 0 !important;
+  border-bottom: 1px solid #DDE4EC !important;
+  background: #F8FAFC;
+}
+.ts-checklist-expand {
+  margin: 0;
+  border-top: 2px solid #00A1DE;
+  background: linear-gradient(180deg, #F0F9FF 0%, #fff 48px);
+}
+.ts-checklist-expand-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #E2E8F0;
+}
+.ts-checklist-expand-kicker {
+  display: block;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #64748B;
+  margin-bottom: 2px;
+}
+.ts-checklist-expand-head strong {
+  font-size: .95rem;
+  color: #0F172A;
+}
+.ts-checklist-expand-close {
+  flex-shrink: 0;
+  border: 1px solid #CBD5E1;
+  background: #fff;
+  color: #334155;
+  font-size: .75rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.ts-checklist-expand-close:hover { background: #F1F5F9; }
+.ts-checklist-expand-body {
+  padding: 12px 14px 16px;
+  max-height: min(420px, 55vh);
+  overflow: auto;
+}
+.ts-checklist-expand-body .panel {
+  margin: 0;
+  border: 1px solid #E2E8F0;
+  box-shadow: none;
+}
+.ts-checklist-expand-body .chips { margin-bottom: 10px !important; }
+.ts-checklist-expand-body .table-wrap {
+  max-height: none;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  overflow: auto;
+}
+.ts-checklist-expand-body .ts-queue-table { font-size: .82rem; }
+.ts-checklist-expand-body .portal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 .daily-checklist-head {
   display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-start;
   margin-bottom: 10px;
@@ -1120,6 +1395,43 @@ a.dm-duty-card:hover {
   color: #145A32;
 }
 .dm-duty-card.is-ban .dm-duty-label { color: #7A5F00; }
+
+/* Trust & Safety Desk (Moderator / Support) */
+.ts-shell .ts-duty-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ts-shell .ts-order-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.ts-shell .dm-duty-label { color: #0A4A66; }
+.ts-shell .ts-card-scope {
+  background: linear-gradient(180deg, #E8F6FC, #fff);
+  border-color: rgba(0, 161, 222, 0.28);
+}
+.ts-shell .ts-card-limits {
+  background: linear-gradient(180deg, #FFF8E8, #fff);
+  border-color: rgba(250, 210, 1, 0.45);
+}
+.ts-shell .dm-duty-card.has-queue,
+.ts-shell .dm-duty-card.is-alert {
+  border-color: rgba(201, 150, 0, 0.55);
+  background: linear-gradient(180deg, #FFFBEA, #fff);
+}
+.ts-shell .dm-order-card {
+  border-color: rgba(0, 161, 222, 0.22);
+  background: linear-gradient(180deg, #F3FAFD, #fff);
+}
+.ts-shell .dm-order-card em {
+  background: #00A1DE;
+  color: #fff;
+}
+.ts-queue-table td.portal-actions {
+  min-width: 220px;
+}
+@media (max-width: 1100px) {
+  .ts-shell .ts-duty-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ts-shell .ts-order-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .ts-shell .ts-duty-grid,
+  .ts-shell .ts-order-grid { grid-template-columns: 1fr; }
+}
 .dm-duty-card h4 {
   margin: 0;
   font-size: .95rem;
