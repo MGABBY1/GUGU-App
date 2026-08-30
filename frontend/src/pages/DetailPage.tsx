@@ -1057,6 +1057,34 @@ export function ChatRoomPage({ roomId }: { roomId?: number }) {
     ? `${t('chat_job_thread')}${room.listing_title ? ` · ${room.listing_title}` : ''}`
     : (room?.listing_title || t('chat_waiting_reply'));
   const activeEmojis = CHAT_EMOJI_CATEGORIES[emojiCat]?.emojis || CHAT_EMOJI_CATEGORIES[0].emojis;
+  const isBuyerStart = messages.length === 0 && room?.my_deal_role === 'buyer';
+  const sampleKeys = room?.is_job
+    ? (['chat_suggest_job_apply', 'chat_suggest_job_details'] as const)
+    : (['chat_suggest_available', 'chat_suggest_price', 'chat_suggest_meet', 'chat_suggest_condition', 'chat_suggest_interest'] as const);
+
+  const sendSample = async (msg: string) => {
+    if (!roomId || sending || !msg.trim()) return;
+    setText(msg);
+    setSending(true);
+    setEmojiOpen(false);
+    try {
+      const d = await api.sendMessage(roomId, msg.trim());
+      setText('');
+      if (d.message) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === d.message.id)) return prev;
+          return [...prev, d.message];
+        });
+      } else {
+        await loadMessages();
+      }
+      scrollToBottom();
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <div className="chat-room-shell">
@@ -1091,7 +1119,28 @@ export function ChatRoomPage({ roomId }: { roomId?: number }) {
 
         <div className="chat-bubbles" ref={bubblesRef} onClick={() => setEmojiOpen(false)}>
           {messages.length === 0 ? (
-            <div className="chat-empty-inline">{t('chat_empty_thread')}</div>
+            <div className="chat-empty-inline">
+              <p>{t('chat_empty_thread')}</p>
+              {isBuyerStart && (
+                <div className="chat-suggest-block">
+                  <strong className="chat-suggest-title">{t('chat_suggest_title')}</strong>
+                  <p className="chat-suggest-hint">{t('chat_suggest_hint')}</p>
+                  <div className="chat-suggest-list">
+                    {sampleKeys.map(key => (
+                      <button
+                        key={key}
+                        type="button"
+                        className="chat-suggest-chip"
+                        disabled={sending}
+                        onClick={() => { void sendSample(t(key)); }}
+                      >
+                        {t(key)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           ) : (
             messages.map(m => {
               const seen = m.is_mine && Number(m.is_read) === 1;
@@ -1115,6 +1164,21 @@ export function ChatRoomPage({ roomId }: { roomId?: number }) {
         </div>
 
         <div className="chat-composer-wrap" ref={composerRef}>
+          {isBuyerStart && !emojiOpen && (
+            <div className="chat-suggest-scroll" aria-label={t('chat_suggest_title')}>
+              {sampleKeys.map(key => (
+                <button
+                  key={`bar-${key}`}
+                  type="button"
+                  className="chat-suggest-pill"
+                  disabled={sending}
+                  onClick={() => { void sendSample(t(key)); }}
+                >
+                  {t(key).length > 42 ? `${t(key).slice(0, 40)}…` : t(key)}
+                </button>
+              ))}
+            </div>
+          )}
           {emojiOpen && (
             <div className="chat-emoji-panel" role="dialog" aria-label={t('chat_emoji')}>
               <div className="chat-emoji-cats">

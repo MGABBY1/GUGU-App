@@ -1,4 +1,4 @@
-/* GUGU Design System — Rwanda flag colors (blue · yellow · green) */
+/* GUGU Design System â Rwanda flag colors (blue Â· yellow Â· green) */
 :root {
   --seed-carrot: #00A1DE;           /* primary = flag blue */
   --seed-carrot-hover: #0088BD;
@@ -108,7 +108,7 @@ img { max-width: 100%; display: block; }
   background: inherit;
 }
 
-/* Bottom Nav — always fully visible */
+/* Bottom Nav â always fully visible */
 .seed-bottom-nav {
   min-height: calc(var(--seed-nav-h) + env(safe-area-inset-bottom, 0px));
   height: auto;
@@ -193,7 +193,7 @@ img { max-width: 100%; display: block; }
   font-weight: 700;
   padding-right: 40px;
 }
-/* Dashboard sticky header — same yellow as Admin portal */
+/* Dashboard sticky header â same yellow as Admin portal */
 .seed-header.seed-header-admin {
   background: #FAD201;
   border-bottom-color: #E6C200;
@@ -246,7 +246,7 @@ img { max-width: 100%; display: block; }
   margin-bottom: 6px;
 }
 
-/* Post an item — category picker (compact, matches Browse listings scale) */
+/* Post an item â category picker (compact, matches Browse listings scale) */
 .sell-browse-hint {
   margin: 0 0 8px;
   font-size: 0.75rem;
@@ -336,7 +336,7 @@ img { max-width: 100%; display: block; }
   line-height: 1.35;
 }
 
-/* ─── GUGU Market / Items page ─── */
+/* âââ GUGU Market / Items page âââ */
 .market-page { background: var(--seed-gray-100); }
 
 .market-header {
@@ -1131,7 +1131,7 @@ img { max-width: 100%; display: block; }
   flex-shrink: 0;
 }
 
-/* ─── Role dashboards ─── */
+/* âââ Role dashboards âââ */
 .dash-page {
   background: var(--seed-gray-100);
   padding-bottom: 24px;
@@ -1381,7 +1381,7 @@ img { max-width: 100%; display: block; }
   cursor: pointer;
 }
 
-/* ── Login / register — frosted glass so market wallpaper shows through ── */
+/* ââ Login / register â frosted glass so market wallpaper shows through ââ */
 .gugu-login-body {
   position: relative;
   isolation: isolate;
@@ -2421,7 +2421,7 @@ img { max-width: 100%; display: block; }
   border-radius: 12px;
 }
 
-/* ── Chats (Karrot-style list + room) ── */
+/* ââ Chats (Karrot-style list + room) ââ */
 .chat-top {
   display: flex;
   align-items: center;
@@ -2685,9 +2685,80 @@ img { max-width: 100%; display: block; }
 .chat-empty-inline {
   text-align: center;
   color: var(--seed-gray-500);
-  padding: 24px;
+  padding: 20px 16px 12px;
   font-size: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
 }
+.chat-empty-inline > p { margin: 0; }
+.chat-suggest-block {
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--seed-gray-200);
+  border-radius: 14px;
+  padding: 12px;
+}
+.chat-suggest-title {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: var(--seed-gray-900);
+  margin-bottom: 4px;
+}
+.chat-suggest-hint {
+  margin: 0 0 10px;
+  font-size: 0.75rem;
+  color: var(--seed-gray-600);
+  line-height: 1.35;
+}
+.chat-suggest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chat-suggest-chip {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--seed-carrot-soft);
+  background: var(--seed-carrot-light);
+  color: var(--seed-gray-900);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.chat-suggest-chip:active { transform: scale(0.99); }
+.chat-suggest-chip:disabled { opacity: 0.6; cursor: default; }
+.chat-suggest-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0 12px 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.chat-suggest-scroll::-webkit-scrollbar { display: none; }
+.chat-suggest-pill {
+  flex: 0 0 auto;
+  max-width: 220px;
+  border: 1px solid var(--seed-gray-200);
+  background: #fff;
+  color: var(--seed-gray-900);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.chat-suggest-pill:disabled { opacity: 0.55; }
 .chat-bubble {
   align-self: flex-start;
   max-width: 78%;
@@ -2825,7 +2896,7 @@ img { max-width: 100%; display: block; }
 }
 .chat-send:disabled { opacity: 0.45; }
 
-/* ── Location sheet (Karrot neighbourhood verify) ── */
+/* ââ Location sheet (Karrot neighbourhood verify) ââ */
 .loc-sheet-backdrop {
   position: fixed;
   inset: 0;
@@ -2943,7 +3014,7 @@ img { max-width: 100%; display: block; }
   box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.25);
 }
 
-/* ── Karrot-style Settings (member gear → Settings) ── */
+/* ââ Karrot-style Settings (member gear â Settings) ââ */
 .stack-layer:has(.ks-page) .seed-header {
   background: #000;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -3134,7 +3205,7 @@ img { max-width: 100%; display: block; }
 
 
 
-/* ���� Member: My posts tracker ���� */
+/* ¦¡¦¡ Member: My posts tracker ¦¡¦¡ */
 .my-posts-page {
   background: var(--seed-gray-100);
   padding-bottom: 24px;
