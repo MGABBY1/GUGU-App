@@ -30,6 +30,7 @@ $donePay = $unpaidPending === 0;
 $doneApprove = $paidPending === 0;
 $doneReports = $reports === 0;
 $idPending = (int) ($idPending ?? 0);
+$active = (int) ($active ?? 0);
 $doneId = $idPending === 0;
 
 // ID step: nationwide Admin, any portal with pending IDs, or Support / District desks
@@ -126,15 +127,16 @@ if ($isSupport) {
             'num' => 1,
             'done' => true,
             'title' => $openStrong,
-            'detail' => $openText,
-            'metric' => $scope,
-            'metric_label' => 'Akarere',
+            'detail' => $openText . ' · ' . $active . ' live post' . ($active === 1 ? '' : 's') . ' in ' . $scopeRaw . '.',
+            'metric' => (string) $active,
+            'metric_label' => 'Live posts',
             'status' => 'Done',
             'status_class' => 'ok',
-            'action' => null,
-            'action_label' => null,
-            'action_class' => '',
-            'pane' => 'home',
+            'action' => $href('home'),
+            'action_label' => 'View desk',
+            'action_class' => 'ok',
+            'pane' => 'desk',
+            'expand_view' => 'desk',
         ],
         [
             'num' => 2,
@@ -149,6 +151,7 @@ if ($isSupport) {
             'action_label' => $doneQueue ? 'View queue' : 'Open queue',
             'action_class' => $doneQueue ? 'ok' : 'warn',
             'pane' => 'listings',
+            'expand_view' => 'queue',
         ],
         [
             'num' => 3,
@@ -164,6 +167,7 @@ if ($isSupport) {
             'action_label' => $donePay ? 'All paid' : 'Confirm pay',
             'action_class' => $donePay ? 'ok' : 'warn',
             'pane' => 'listings',
+            'expand_view' => 'unpaid',
         ],
         [
             'num' => 4,
@@ -178,6 +182,7 @@ if ($isSupport) {
             'action_label' => $doneApprove ? $approveDone : $approveTodo,
             'action_class' => $doneApprove ? 'ok' : '',
             'pane' => 'listings',
+            'expand_view' => 'paid',
         ],
         [
             'num' => 5,
@@ -192,6 +197,7 @@ if ($isSupport) {
             'action_label' => 'Reject junk',
             'action_class' => 'danger',
             'pane' => 'listings',
+            'expand_view' => 'flagged',
         ],
         [
             'num' => 6,
@@ -206,6 +212,7 @@ if ($isSupport) {
             'action_label' => $doneReports ? 'No reports' : 'Open reports',
             'action_class' => $doneReports ? 'ok' : 'warn',
             'pane' => 'reports',
+            'expand_view' => 'reports',
         ],
     ];
     if ($showIdStep) {
@@ -222,42 +229,43 @@ if ($isSupport) {
             'action_label' => $doneId ? 'IDs clear' : 'Review IDs',
             'action_class' => $doneId ? 'ok' : 'warn',
             'pane' => 'id-queue',
+            'expand_view' => 'ids',
         ];
     }
     $tsPendingCount = count(array_filter($tsChecklistRows, static fn($r) => empty($r['done']) && !empty($r['action'])));
 }
 ?>
-<section class="panel daily-checklist<?= $isSupport ? ' daily-checklist-support ts-checklist-panel' : '' ?>" id="checklist">
+<section class="panel daily-checklist<?= $isSupport ? ' daily-checklist-support ts-checklist-panel' : '' ?>" id="ts-checklist-root"<?= $isSupport ? ' data-ts-district="' . htmlspecialchars($scopeRaw, ENT_QUOTES) . '"' : '' ?>>
   <div class="daily-checklist-head">
     <div>
       <span class="portal-kicker daily-kicker">Daily routine</span>
       <h3><?= htmlspecialchars($title) ?></h3>
       <p class="daily-checklist-sub"><?= $sub ?></p>
     </div>
-    <div class="daily-progress" aria-label="Checklist progress">
-      <strong><?= $progressDone ?>/<?= $totalSteps ?></strong>
-      <span><?= $pct ?>% clear</span>
+    <div class="daily-progress" aria-label="Checklist progress" id="ts-checklist-progress">
+      <strong id="ts-checklist-progress-count"><?= $progressDone ?>/<?= $totalSteps ?></strong>
+      <span id="ts-checklist-progress-pct"><?= $pct ?>% clear</span>
     </div>
   </div>
-  <div class="daily-progress-bar" role="progressbar" aria-valuenow="<?= $pct ?>" aria-valuemin="0" aria-valuemax="100">
-    <i style="width:<?= $pct ?>%"></i>
+  <div class="daily-progress-bar" role="progressbar" aria-valuenow="<?= $pct ?>" aria-valuemin="0" aria-valuemax="100" id="ts-checklist-progress-bar">
+    <i id="ts-checklist-progress-fill" style="width:<?= $pct ?>%"></i>
   </div>
 
   <?php if ($isSupport): ?>
-  <div class="ts-checklist-summary" aria-label="Quick status">
-    <div class="ts-checklist-chip<?= $review > 0 ? ' is-alert' : ' is-ok' ?>">
+  <div class="ts-checklist-summary" aria-label="Quick status" id="ts-checklist-summary">
+    <div class="ts-checklist-chip<?= $review > 0 ? ' is-alert' : ' is-ok' ?>" data-ts-chip="review">
       <span>Queue</span><strong><?= $review ?></strong>
     </div>
-    <div class="ts-checklist-chip<?= $unpaidPending > 0 ? ' is-alert' : ' is-ok' ?>">
+    <div class="ts-checklist-chip<?= $unpaidPending > 0 ? ' is-alert' : ' is-ok' ?>" data-ts-chip="unpaid">
       <span>Unpaid</span><strong><?= $unpaidPending ?></strong>
     </div>
-    <div class="ts-checklist-chip<?= $paidPending > 0 ? ' is-warn' : ' is-ok' ?>">
+    <div class="ts-checklist-chip<?= $paidPending > 0 ? ' is-warn' : ' is-ok' ?>" data-ts-chip="paid">
       <span>Paid ready</span><strong><?= $paidPending ?></strong>
     </div>
-    <div class="ts-checklist-chip<?= $reports > 0 ? ' is-alert' : ' is-ok' ?>">
+    <div class="ts-checklist-chip<?= $reports > 0 ? ' is-alert' : ' is-ok' ?>" data-ts-chip="reports">
       <span>Reports</span><strong><?= $reports ?></strong>
     </div>
-    <div class="ts-checklist-chip<?= $idPending > 0 ? ' is-alert' : ' is-ok' ?>">
+    <div class="ts-checklist-chip<?= $idPending > 0 ? ' is-alert' : ' is-ok' ?>" data-ts-chip="id">
       <span>ID pending</span><strong><?= $idPending ?></strong>
     </div>
   </div>
@@ -276,10 +284,10 @@ if ($isSupport) {
       <tbody>
       <?php foreach ($tsChecklistRows as $row):
         $rowKey = 'ts-cl-' . (int) $row['num'];
-        $hasExpand = $isSupport && !empty($row['pane']) && $row['pane'] !== 'home';
+        $hasExpand = $isSupport && !empty($row['expand_view']);
       ?>
         <tr class="ts-checklist-row<?= !empty($row['done']) ? ' is-done' : ' is-todo' ?><?= $hasExpand ? ' has-expand' : '' ?>"
-            data-checklist-row="<?= htmlspecialchars($rowKey) ?>">
+            data-checklist-row="<?= htmlspecialchars($rowKey) ?>" data-ts-step="<?= (int) $row['num'] ?>">
           <td class="ts-checklist-num">
             <span class="ts-checklist-step" aria-hidden="true"><?= !empty($row['done']) ? '✓' : (int) $row['num'] ?></span>
           </td>
@@ -300,7 +308,7 @@ if ($isSupport) {
             <?php if (!empty($row['action'])): ?>
               <?php if ($hasExpand): ?>
                 <button type="button" class="btn-sm <?= htmlspecialchars((string) $row['action_class']) ?>"
-                        data-ts-expand="<?= htmlspecialchars((string) $row['pane']) ?>"
+                        data-ts-expand-view="<?= htmlspecialchars((string) $row['expand_view']) ?>"
                         data-ts-expand-target="<?= htmlspecialchars($rowKey) ?>"
                         aria-expanded="false"
                         aria-controls="<?= htmlspecialchars($rowKey) ?>-panel">
@@ -319,7 +327,7 @@ if ($isSupport) {
         <?php if ($hasExpand): ?>
         <tr class="ts-checklist-expand-row" id="<?= htmlspecialchars($rowKey) ?>-panel" hidden>
           <td colspan="5">
-            <div class="ts-checklist-expand" data-ts-expand-pane="<?= htmlspecialchars((string) $row['pane']) ?>">
+            <div class="ts-checklist-expand" data-ts-expand-view="<?= htmlspecialchars((string) $row['expand_view']) ?>">
               <header class="ts-checklist-expand-head">
                 <div>
                   <span class="ts-checklist-expand-kicker">Step <?= (int) $row['num'] ?> · <?= htmlspecialchars($scopeRaw) ?></span>
@@ -337,9 +345,9 @@ if ($isSupport) {
     </table>
   </div>
   <?php if ($tsPendingCount === 0): ?>
-    <p class="ts-checklist-foot hint">All routine checks are clear for <?= htmlspecialchars($scope) ?> today.</p>
+    <p class="ts-checklist-foot hint" id="ts-checklist-foot">All routine checks are clear for <?= htmlspecialchars($scope) ?> today.</p>
   <?php else: ?>
-    <p class="ts-checklist-foot hint"><?= (int) $tsPendingCount ?> step<?= $tsPendingCount === 1 ? '' : 's' ?> still need attention — use the Action column.</p>
+    <p class="ts-checklist-foot hint" id="ts-checklist-foot"><?= (int) $tsPendingCount ?> step<?= $tsPendingCount === 1 ? '' : 's' ?> still need attention — use the Action column.</p>
   <?php endif; ?>
 
   <?php else: ?>

@@ -992,6 +992,36 @@ body.portal-support .panel > h3 { color: #0A4A66; }
   gap: 4px;
 }
 
+/* Trust & Safety — live auto-sync indicator */
+.ts-shell { position: relative; }
+.ts-live-sync {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  z-index: 8000;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #E8F5EE;
+  color: #145A32;
+  border: 1px solid #B7DFC7;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  transition: background .25s, color .25s, transform .25s;
+}
+.ts-live-sync.is-flash {
+  background: #FFF6D6;
+  color: #8A6D00;
+  border-color: #F0D78C;
+  transform: scale(1.03);
+}
+.ts-live-pane-body.is-loading {
+  opacity: 0.72;
+  pointer-events: none;
+  transition: opacity .2s;
+}
+
 .daily-checklist-head {
   display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-start;
   margin-bottom: 10px;

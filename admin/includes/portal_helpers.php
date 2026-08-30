@@ -1185,8 +1185,17 @@ function portalFormatReviewedAt(?string $datetime): array {
     ];
 }
 
+function portalIsSupportDeskContext(): bool {
+    $role = (int) ($_SESSION['role_id'] ?? 0);
+    if ($role === 3) {
+        return true;
+    }
+    $preview = portalPreviewGet();
+    return $role === 1 && $preview['role'] === 3;
+}
+
 /** Full Member ID verification queue panel (Admin + Support). */
-function portalRenderIdVerificationQueue(array $data, string $scopeNote = 'Nationwide'): void {
+function portalRenderIdVerificationQueue(array $data, string $scopeNote = 'Nationwide', string $returnPane = 'id-queue'): void {
     $pending = (int) ($data['pending'] ?? 0);
     $approved = (int) ($data['approved'] ?? 0);
     $rejected = (int) ($data['rejected'] ?? 0);
@@ -1259,11 +1268,12 @@ function portalRenderIdVerificationQueue(array $data, string $scopeNote = 'Natio
               <?php endif; ?>
             </td>
             <td class="portal-actions id-review-actions">
-              <?= portalActionForm('review-id', ['user_id' => $u['id'], 'id_status' => 'approved'], 'Approve ID', 'btn-sm ok') ?>
+              <?= portalActionForm('review-id', ['user_id' => $u['id'], 'id_status' => 'approved', 'return_pane' => $returnPane], 'Approve ID', 'btn-sm ok') ?>
               <form method="post" action="/gugu-app/admin/actions.php" class="portal-inline-form id-reject-form">
                 <input type="hidden" name="action" value="review-id">
                 <input type="hidden" name="user_id" value="<?= (int) $u['id'] ?>">
                 <input type="hidden" name="id_status" value="rejected">
+                <input type="hidden" name="return_pane" value="<?= htmlspecialchars($returnPane) ?>">
                 <?php
                 $preview = portalPreviewGet();
                 if ($preview['role'] === 2 || $preview['role'] === 3):

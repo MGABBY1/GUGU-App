@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/../includes/portal_helpers.php';
 require_once __DIR__ . '/../includes/management_roles.php';
+require_once __DIR__ . '/../includes/support_desk.php';
 
 $db = getDB();
 $mgmt = guguManagementRoles()[3];
@@ -27,74 +28,29 @@ $tsNavHref = static function (string $pane) use ($navBase, $navQs): string {
 };
 
 // Keep business_type aligned for this district (items vs jobs)
-try {
-  $jobCat = guguJobCategoryId();
-  if ($jobCat > 0) {
-    $db->prepare('UPDATE listings SET business_type = "job" WHERE district = ? AND category_id = ? AND business_type <> "job"')
-       ->execute([$district, $jobCat]);
-    $db->prepare('UPDATE listings SET business_type = "item" WHERE district = ? AND (category_id IS NULL OR category_id <> ?) AND business_type <> "item"')
-       ->execute([$district, $jobCat]);
-  }
-} catch (Throwable $e) {
-  // older DB without business_type — ignore
-}
-
-$countListing = static function (string $where, array $extra = []) use ($db, $district): int {
-  $params = array_merge([$district], $extra);
-  $stmt = $db->prepare("SELECT COUNT(*) FROM listings WHERE district = ? AND {$where}");
-  $stmt->execute($params);
-  return (int) $stmt->fetchColumn();
-};
-
-$review = $countListing('moderation_status IN ("pending","flagged")');
-$itemReview = $countListing('moderation_status IN ("pending","flagged") AND business_type = "item"');
-$jobReview = $countListing('moderation_status IN ("pending","flagged") AND business_type = "job"');
-$flagged = $countListing('moderation_status = "flagged"');
-$active = $countListing('status = "active" AND moderation_status = "approved"');
-$paidPending = $countListing('moderation_status = "pending" AND payment_status = "paid"');
-$unpaidPending = $countListing('moderation_status IN ("pending","flagged") AND payment_status = "unpaid"');
+$desk = portalSupportDeskData($db, $district);
+$review = (int) $desk['review'];
+$itemReview = (int) $desk['item_review'];
+$jobReview = (int) $desk['job_review'];
+$flagged = (int) $desk['flagged'];
+$active = (int) $desk['active'];
+$paidPending = (int) $desk['paid_pending'];
+$unpaidPending = (int) $desk['unpaid_pending'];
+$queue = $desk['queue'];
+$openReports = $desk['open_reports'];
+$reports = (int) $desk['reports'];
+$idData = $desk['id_data'];
+$idPending = (int) $desk['id_pending'];
+$idApproved = (int) $desk['id_approved'];
+$idQueue = $idData['queue'];
 $checklistScope = $district;
 $checklistRole = 3;
-
-$stmt = $db->prepare('
-  SELECT l.id, l.title, l.district, l.sector, l.moderation_status, l.payment_status,
-         l.announce_fee_rwf, l.user_id, l.business_type, l.category_id, l.created_at,
-         u.nickname, u.email, u.phone
-  FROM listings l
-  JOIN users u ON u.id = l.user_id
-  WHERE l.moderation_status IN ("pending","flagged") AND l.district = ?
-  ORDER BY FIELD(l.moderation_status, "flagged", "pending"), l.created_at DESC
-  LIMIT 60
-');
-$stmt->execute([$district]);
-$queue = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-$stmt = $db->prepare('
-  SELECT r.id, r.target_type, r.target_id, r.reason, r.details, r.status, r.created_at,
-         COALESCE(l.district, u.district) AS place_district,
-         COALESCE(u.nickname, l.title) AS target_label,
-         u.email AS member_email,
-         u.phone AS member_phone
-  FROM reports r
-  LEFT JOIN listings l ON r.target_type = "listing" AND l.id = r.target_id
-  LEFT JOIN users u ON r.target_type = "user" AND u.id = r.target_id
-  WHERE r.status IN ("open","reviewing") AND (l.district = ? OR u.district = ?)
-  ORDER BY r.created_at DESC
-  LIMIT 40
-');
-$stmt->execute([$district, $district]);
-$openReports = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-$reports = count($openReports);
-
-$idData = portalIdVerificationData($db, $district);
-$idPending = (int) $idData['pending'];
-$idApproved = (int) $idData['approved'];
-$idQueue = $idData['queue'];
 ?>
 <div class="admin-shell ts-shell" id="ts-shell"
      data-preview="<?= $isAdminPreview ? '1' : '0' ?>"
      data-view-role="<?= $isAdminPreview ? '3' : '' ?>"
      data-view-district="<?= htmlspecialchars($district, ENT_QUOTES) ?>">
+  <div class="ts-live-sync" id="ts-live-sync" aria-live="polite" hidden>Live · synced</div>
 
   <!-- HOME -->
   <section class="admin-pane is-active" data-pane="home" id="home">
@@ -143,53 +99,53 @@ $idQueue = $idData['queue'];
           <p>Trust &amp; Safety work stays in this Akarere only.</p>
         </article>
 
-        <a class="dm-duty-card<?= $review > 0 ? ' has-queue' : '' ?>" href="<?= htmlspecialchars($tsNavHref('listings')) ?>" data-open="listings">
+        <a class="dm-duty-card<?= $review > 0 ? ' has-queue' : '' ?>" href="<?= htmlspecialchars($tsNavHref('listings')) ?>" data-open="listings" data-ts-duty="listings">
           <span class="dm-duty-label">Moderation queue</span>
           <h4>Review posts</h4>
           <p>Mark paid · Approve · Flag · Reject spam</p>
           <div class="dm-duty-meta">
-            <span><?= $review ?> waiting</span>
-            <span><?= $itemReview ?> items</span>
-            <span><?= $jobReview ?> jobs</span>
+            <span data-ts-meta="review-wait"><?= $review ?> waiting</span>
+            <span data-ts-meta="review-items"><?= $itemReview ?> items</span>
+            <span data-ts-meta="review-jobs"><?= $jobReview ?> jobs</span>
           </div>
         </a>
 
-        <a class="dm-duty-card<?= $unpaidPending > 0 ? ' has-queue' : '' ?>" href="<?= htmlspecialchars($tsNavHref('listings')) ?>" data-open="listings">
+        <a class="dm-duty-card<?= $unpaidPending > 0 ? ' has-queue' : '' ?>" href="<?= htmlspecialchars($tsNavHref('listings')) ?>" data-open="listings" data-ts-duty="payments">
           <span class="dm-duty-label">Payments</span>
           <h4>Confirm MoMo</h4>
           <p>Check payment then Mark paid on the queue.</p>
           <div class="dm-duty-meta">
-            <span><?= $unpaidPending ?> unpaid</span>
-            <span><?= $paidPending ?> paid ready</span>
+            <span data-ts-meta="unpaid"><?= $unpaidPending ?> unpaid</span>
+            <span data-ts-meta="paid-ready"><?= $paidPending ?> paid ready</span>
           </div>
         </a>
 
-        <a class="dm-duty-card<?= $idPending > 0 ? ' is-alert has-queue' : '' ?>" href="<?= htmlspecialchars($tsNavHref('id-queue')) ?>" data-open="id-queue">
+        <a class="dm-duty-card<?= $idPending > 0 ? ' is-alert has-queue' : '' ?>" href="<?= htmlspecialchars($tsNavHref('id-queue')) ?>" data-open="id-queue" data-ts-duty="ids">
           <span class="dm-duty-label">ID verification</span>
           <h4>Approve / reject IDs</h4>
           <p>Member national ID documents in <?= htmlspecialchars($district) ?>.</p>
           <div class="dm-duty-meta">
-            <span><?= $idPending ?> pending</span>
-            <span><?= $idApproved ?> approved</span>
+            <span data-ts-meta="id-pending"><?= $idPending ?> pending</span>
+            <span data-ts-meta="id-approved"><?= $idApproved ?> approved</span>
           </div>
         </a>
 
-        <a class="dm-duty-card<?= $reports > 0 ? ' has-queue' : '' ?>" href="<?= htmlspecialchars($tsNavHref('reports')) ?>" data-open="reports">
+        <a class="dm-duty-card<?= $reports > 0 ? ' has-queue' : '' ?>" href="<?= htmlspecialchars($tsNavHref('reports')) ?>" data-open="reports" data-ts-duty="reports">
           <span class="dm-duty-label">Reports</span>
           <h4>Tickets &amp; flags</h4>
           <p>Resolve or dismiss community reports.</p>
           <div class="dm-duty-meta">
-            <span><?= $reports ?> open</span>
+            <span data-ts-meta="reports-open"><?= $reports ?> open</span>
           </div>
         </a>
 
-        <a class="dm-duty-card" href="<?= htmlspecialchars($tsNavHref('checklist')) ?>" data-open="checklist">
+        <a class="dm-duty-card" href="<?= htmlspecialchars($tsNavHref('checklist')) ?>" data-open="checklist" data-ts-duty="checklist">
           <span class="dm-duty-label">Routine</span>
           <h4>Daily checklist</h4>
           <p>Queue → MoMo → Approve → Reports → IDs</p>
           <div class="dm-duty-meta">
-            <span><?= $review ?> queue</span>
-            <span><?= $flagged ?> flagged</span>
+            <span data-ts-meta="checklist-queue"><?= $review ?> queue</span>
+            <span data-ts-meta="checklist-flagged"><?= $flagged ?> flagged</span>
           </div>
         </a>
 
@@ -250,8 +206,6 @@ $idQueue = $idData['queue'];
     </header>
     <?php require __DIR__ . '/../includes/daily_checklist.php'; ?>
   </section>
-
-  <!-- QUEUE -->
   <section class="admin-pane" data-pane="listings" id="pane-listings">
     <header class="admin-pane-head">
       <button type="button" class="admin-back" data-back="1">&larr; Back</button>
@@ -260,6 +214,7 @@ $idQueue = $idData['queue'];
       <p class="admin-pane-sub">Items &amp; jobs waiting — Mark paid, Approve, Flag, Reject, or act on fraud.</p>
     </header>
 
+    <div class="ts-live-pane-body" data-ts-live-view="queue" data-ts-return-pane="listings">
     <div class="chips" style="margin-bottom:12px">
       <span class="chip <?= $review > 0 ? 'chip-yellow' : 'chip-green' ?>">Waiting · <?= $review ?></span>
       <span class="chip">Items · <?= $itemReview ?></span>
@@ -267,69 +222,8 @@ $idQueue = $idData['queue'];
       <span class="chip"><?= $unpaidPending ?> unpaid</span>
       <span class="chip"><?= $paidPending ?> paid ready</span>
     </div>
-
-    <?php if (!$queue): ?>
-      <section class="panel">
-        <p class="hint">Queue empty — nothing waiting in <?= htmlspecialchars($district) ?>.</p>
-      </section>
-    <?php else: ?>
-      <section class="panel">
-        <div class="table-wrap"><table class="ts-queue-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Title</th>
-              <th>Type</th>
-              <th>Member</th>
-              <th>Email</th>
-              <th>Pay / Mod</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-          <?php foreach ($queue as $l):
-            $sellerEmail = trim((string) ($l['email'] ?? ''));
-            $biz = (string) ($l['business_type'] ?? '');
-            if ($biz !== 'item' && $biz !== 'job') {
-              $biz = guguBusinessTypeFromCategory((int) ($l['category_id'] ?? 0));
-            }
-            $bizLabel = $biz === 'job' ? 'Job' : 'Item';
-          ?>
-            <tr>
-              <td>#<?= (int) $l['id'] ?></td>
-              <td>
-                <strong><?= htmlspecialchars((string) $l['title']) ?></strong>
-                <?php if (!empty($l['sector'])): ?>
-                  <br><small class="muted"><?= htmlspecialchars((string) $l['sector']) ?></small>
-                <?php endif; ?>
-              </td>
-              <td><span class="status-pill"><?= htmlspecialchars($bizLabel) ?></span></td>
-              <td>
-                <?= htmlspecialchars($l['nickname'] ?: '—') ?>
-                <?php if (!empty($l['phone'])): ?>
-                  <br><small class="muted"><?= htmlspecialchars((string) $l['phone']) ?></small>
-                <?php endif; ?>
-              </td>
-              <td><?= $sellerEmail !== '' ? htmlspecialchars($sellerEmail) : '<span class="muted">—</span>' ?></td>
-              <td>
-                <span class="<?= htmlspecialchars(portalStatusPillClass((string) ($l['payment_status'] ?? 'unpaid'))) ?>"><?= htmlspecialchars((string) ($l['payment_status'] ?? 'unpaid')) ?></span>
-                <br><span class="<?= htmlspecialchars(portalStatusPillClass((string) $l['moderation_status'])) ?>"><?= htmlspecialchars((string) $l['moderation_status']) ?></span>
-                <br><small class="muted"><?= (int) ($l['announce_fee_rwf'] ?? 1000) ?> RWF</small>
-              </td>
-              <td class="portal-actions">
-                <?= portalActionForm('mark-listing-paid', ['listing_id' => $l['id'], 'payment_note' => 'MoMo received', 'return_pane' => 'listings'], 'Mark paid', 'btn-sm warn') ?>
-                <?= portalActionForm('moderate-listing', ['listing_id' => $l['id'], 'moderation_status' => 'approved', 'return_pane' => 'listings'], 'Approve', 'btn-sm ok') ?>
-                <?= portalActionForm('moderate-listing', ['listing_id' => $l['id'], 'moderation_status' => 'flagged', 'return_pane' => 'listings'], 'Flag', 'btn-sm warn') ?>
-                <?= portalActionForm('moderate-listing', ['listing_id' => $l['id'], 'moderation_status' => 'rejected', 'return_pane' => 'listings'], 'Reject', 'btn-sm danger') ?>
-                <?= portalActionForm('suspend-seller', ['user_id' => $l['user_id'], 'return_pane' => 'listings'], 'Suspend', 'btn-sm danger') ?>
-                <?= portalActionForm('ban-seller', ['user_id' => $l['user_id'], 'return_pane' => 'listings'], 'Ban fraud', 'btn-sm danger') ?>
-              </td>
-            </tr>
-          <?php endforeach; ?>
-          </tbody>
-        </table></div>
-      </section>
-    <?php endif; ?>
+    <?php portalSupportRenderQueueTable($queue, 'listings'); ?>
+    </div>
   </section>
 
   <!-- ID QUEUE -->
@@ -340,7 +234,9 @@ $idQueue = $idData['queue'];
       <h2>ID verification</h2>
       <p class="admin-pane-sub">Approve clear documents · Reject unclear ones so members can resubmit.</p>
     </header>
-    <?php portalRenderIdVerificationQueue($idData, $district); ?>
+    <div class="ts-live-pane-body" data-ts-live-view="ids" data-ts-return-pane="id-queue">
+    <?php portalRenderIdVerificationQueue($idData, $district, 'id-queue'); ?>
+    </div>
   </section>
 
   <!-- REPORTS -->
@@ -352,61 +248,9 @@ $idQueue = $idData['queue'];
       <p class="admin-pane-sub">Open community flags for listings or members in <?= htmlspecialchars($district) ?>.</p>
     </header>
 
-    <?php if (!$openReports): ?>
-      <section class="panel">
-        <p class="hint">No open reports in <?= htmlspecialchars($district) ?>.</p>
-      </section>
-    <?php else: ?>
-      <section class="panel">
-        <div class="table-wrap"><table class="ts-queue-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Target</th>
-              <th>Member email</th>
-              <th>Reason</th>
-              <th>Status</th>
-              <th>Handle</th>
-            </tr>
-          </thead>
-          <tbody>
-          <?php foreach ($openReports as $r):
-            $memberEmail = trim((string) ($r['member_email'] ?? ''));
-            $targetLabel = trim((string) ($r['target_label'] ?? ''));
-          ?>
-            <tr>
-              <td>#<?= (int) $r['id'] ?></td>
-              <td>
-                <strong><?= htmlspecialchars((string) ($r['target_type'] ?? '') . ' #' . (int) ($r['target_id'] ?? 0)) ?></strong>
-                <?php if ($targetLabel !== ''): ?>
-                  <br><small class="muted"><?= htmlspecialchars($targetLabel) ?></small>
-                <?php endif; ?>
-                <?php if (!empty($r['member_phone'])): ?>
-                  <br><small class="muted"><?= htmlspecialchars((string) $r['member_phone']) ?></small>
-                <?php endif; ?>
-              </td>
-              <td><?= $memberEmail !== '' ? htmlspecialchars($memberEmail) : '<span class="muted">—</span>' ?></td>
-              <td>
-                <?= htmlspecialchars((string) ($r['reason'] ?? '')) ?>
-                <?php if (!empty($r['details'])): ?>
-                  <br><small class="muted"><?= htmlspecialchars((string) $r['details']) ?></small>
-                <?php endif; ?>
-              </td>
-              <td><span class="<?= htmlspecialchars(portalStatusPillClass((string) ($r['status'] ?? 'open'))) ?>"><?= htmlspecialchars((string) ($r['status'] ?? 'open')) ?></span></td>
-              <td class="portal-actions">
-                <?= portalActionForm('resolve-report', ['report_id' => $r['id'], 'status' => 'reviewing', 'return_pane' => 'reports'], 'Reviewing', 'btn-sm warn') ?>
-                <?= portalActionForm('resolve-report', ['report_id' => $r['id'], 'status' => 'resolved', 'return_pane' => 'reports'], 'Resolve', 'btn-sm ok') ?>
-                <?= portalActionForm('resolve-report', ['report_id' => $r['id'], 'status' => 'dismissed', 'return_pane' => 'reports'], 'Dismiss', 'btn-sm') ?>
-                <?php if (($r['target_type'] ?? '') === 'user'): ?>
-                  <?= portalActionForm('ban-seller', ['user_id' => $r['target_id'], 'return_pane' => 'reports'], 'Ban user', 'btn-sm danger') ?>
-                <?php endif; ?>
-              </td>
-            </tr>
-          <?php endforeach; ?>
-          </tbody>
-        </table></div>
-      </section>
-    <?php endif; ?>
+    <div class="ts-live-pane-body" data-ts-live-view="reports" data-ts-return-pane="reports">
+    <?php portalSupportRenderReportsTable($openReports, $district, 'reports'); ?>
+    </div>
   </section>
 </div>
 
@@ -583,12 +427,200 @@ $idQueue = $idData['queue'];
     } catch (err) {}
   });
 
-  // Checklist action → inline expand row in the table
+  // Live DB sync — auto-refresh all Support desk UI (checklist, panes, home cards)
+  var checklistRoot = document.getElementById('ts-checklist-root');
+  var liveSyncEl = document.getElementById('ts-live-sync');
+  var tsApiBase = '/gugu-app/admin/api/ts-desk.php';
+  var tsLastStatsKey = '';
+  var tsSyncBusy = false;
+  var TS_SYNC_MS = 12000;
+
+  function getActivePaneKey() {
+    var p = shell.querySelector('.admin-pane.is-active');
+    return p ? (p.getAttribute('data-pane') || 'home') : 'home';
+  }
+  function tsApiUrl(view, returnPane) {
+    var u = new URL(tsApiBase, location.origin);
+    u.searchParams.set('view', view || 'stats');
+    u.searchParams.set('district', shell.getAttribute('data-view-district') || '');
+    if (returnPane) u.searchParams.set('return_pane', returnPane);
+    if (shell.getAttribute('data-preview') === '1') {
+      u.searchParams.set('view_role', shell.getAttribute('data-view-role') || '3');
+      u.searchParams.set('view_district', shell.getAttribute('data-view-district') || '');
+    }
+    return u.pathname + u.search;
+  }
+  function tsFetch(view, returnPane) {
+    return fetch(tsApiUrl(view, returnPane), { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (r) { return r.json(); });
+  }
+  function tsStatsKey(stats) {
+    if (!stats) return '';
+    return [stats.review, stats.unpaid_pending, stats.paid_pending, stats.reports,
+      stats.id_pending, stats.active, stats.flagged].join('|');
+  }
+  function showLiveSyncPulse(changed) {
+    if (!liveSyncEl) return;
+    liveSyncEl.hidden = false;
+    liveSyncEl.textContent = changed ? 'Live · new updates' : 'Live · synced';
+    liveSyncEl.classList.add('is-flash');
+    setTimeout(function () { liveSyncEl.classList.remove('is-flash'); }, 1200);
+  }
+  function tsChipClass(kind, val) {
+    if (kind === 'paid') return val > 0 ? 'is-warn' : 'is-ok';
+    return val > 0 ? 'is-alert' : 'is-ok';
+  }
+  function applyHomeCards(stats) {
+    var setMeta = function (sel, text) {
+      var el = shell.querySelector('[data-ts-meta="' + sel + '"]');
+      if (el) el.textContent = text;
+    };
+    setMeta('review-wait', (stats.review || 0) + ' waiting');
+    setMeta('review-items', (stats.item_review || 0) + ' items');
+    setMeta('review-jobs', (stats.job_review || 0) + ' jobs');
+    setMeta('unpaid', (stats.unpaid_pending || 0) + ' unpaid');
+    setMeta('paid-ready', (stats.paid_pending || 0) + ' paid ready');
+    setMeta('id-pending', (stats.id_pending || 0) + ' pending');
+    setMeta('id-approved', (stats.id_approved || 0) + ' approved');
+    setMeta('reports-open', (stats.reports || 0) + ' open');
+    setMeta('checklist-queue', (stats.review || 0) + ' queue');
+    setMeta('checklist-flagged', (stats.flagged || 0) + ' flagged');
+    var listingsCard = shell.querySelector('[data-ts-duty="listings"]');
+    if (listingsCard) listingsCard.classList.toggle('has-queue', (stats.review || 0) > 0);
+    var payCard = shell.querySelector('[data-ts-duty="payments"]');
+    if (payCard) payCard.classList.toggle('has-queue', (stats.unpaid_pending || 0) > 0);
+    var idCard = shell.querySelector('[data-ts-duty="ids"]');
+    if (idCard) {
+      idCard.classList.toggle('has-queue', (stats.id_pending || 0) > 0);
+      idCard.classList.toggle('is-alert', (stats.id_pending || 0) > 0);
+    }
+    var repCard = shell.querySelector('[data-ts-duty="reports"]');
+    if (repCard) repCard.classList.toggle('has-queue', (stats.reports || 0) > 0);
+  }
+  function applyChecklistPayload(data) {
+    if (!data) return;
+    var stats = data.stats || {};
+    var progress = data.progress || {};
+    applyHomeCards(stats);
+    if (checklistRoot) {
+      var chipMap = {
+        review: stats.review || 0,
+        unpaid: stats.unpaid_pending || 0,
+        paid: stats.paid_pending || 0,
+        reports: stats.reports || 0,
+        id: stats.id_pending || 0
+      };
+      Object.keys(chipMap).forEach(function (key) {
+        var chip = checklistRoot.querySelector('[data-ts-chip="' + key + '"]');
+        if (!chip) return;
+        chip.querySelector('strong').textContent = String(chipMap[key]);
+        chip.classList.remove('is-ok', 'is-warn', 'is-alert');
+        chip.classList.add(tsChipClass(key, chipMap[key]));
+      });
+      var progCount = document.getElementById('ts-checklist-progress-count');
+      var progPct = document.getElementById('ts-checklist-progress-pct');
+      var progFill = document.getElementById('ts-checklist-progress-fill');
+      var progBar = document.getElementById('ts-checklist-progress-bar');
+      if (progCount) progCount.textContent = (progress.done || 0) + '/' + (progress.total || 7);
+      if (progPct) progPct.textContent = (progress.pct || 0) + '% clear';
+      if (progFill) progFill.style.width = (progress.pct || 0) + '%';
+      if (progBar) progBar.setAttribute('aria-valuenow', String(progress.pct || 0));
+      var foot = document.getElementById('ts-checklist-foot');
+      if (foot && data.foot) foot.textContent = data.foot;
+      (data.rows || []).forEach(function (row) {
+        var tr = checklistRoot.querySelector('[data-ts-step="' + row.num + '"]');
+        if (!tr) return;
+        tr.classList.toggle('is-done', !!row.done);
+        tr.classList.toggle('is-todo', !row.done);
+        var step = tr.querySelector('.ts-checklist-step');
+        if (step) step.textContent = row.done ? '✓' : String(row.num);
+        var detail = tr.querySelector('.ts-checklist-task p');
+        if (detail && row.detail) detail.textContent = row.detail;
+        var metricLabel = tr.querySelector('.ts-checklist-metric-label');
+        if (metricLabel && row.metric_label) metricLabel.textContent = row.metric_label;
+        var metric = tr.querySelector('.ts-checklist-metric strong');
+        if (metric) metric.textContent = row.metric;
+        var pill = tr.querySelector('.ts-checklist-status .ts-checklist-pill');
+        if (pill) {
+          pill.textContent = row.status;
+          pill.className = 'ts-checklist-pill is-' + (row.status_class || 'ok');
+        }
+        var btn = tr.querySelector('[data-ts-expand-view]');
+        if (btn && row.action_label) btn.textContent = row.action_label;
+      });
+    }
+    shell.querySelectorAll('.admin-kpi').forEach(function (kpi) {
+      var label = (kpi.querySelector('.admin-kpi-label') || {}).textContent || '';
+      var val = kpi.querySelector('.admin-kpi-value');
+      if (!val) return;
+      if (label.indexOf('Queue') === 0) val.textContent = String(stats.review || 0);
+      if (label.indexOf('ID pending') === 0) val.textContent = String(stats.id_pending || 0);
+      if (label.indexOf('Reports') === 0) val.textContent = String(stats.reports || 0);
+      if (label.indexOf('Live posts') === 0) val.textContent = String(stats.active || 0);
+      kpi.classList.toggle('is-alert', (label.indexOf('Queue') === 0 && stats.review > 0)
+        || (label.indexOf('ID pending') === 0 && stats.id_pending > 0)
+        || (label.indexOf('Reports') === 0 && stats.reports > 0));
+    });
+    var newKey = tsStatsKey(stats);
+    var changed = tsLastStatsKey !== '' && newKey !== tsLastStatsKey;
+    tsLastStatsKey = newKey;
+    showLiveSyncPulse(changed);
+    return changed;
+  }
+  function refreshChecklistStats() {
+    return tsFetch('stats').then(function (data) {
+      if (data && data.ok) applyChecklistPayload(data);
+      return data;
+    }).catch(function () {});
+  }
+  function refreshLivePaneBody(liveEl, silent) {
+    if (!liveEl) return Promise.resolve();
+    var view = liveEl.getAttribute('data-ts-live-view') || '';
+    var rp = liveEl.getAttribute('data-ts-return-pane') || '';
+    if (!view) return Promise.resolve();
+    if (!silent) liveEl.classList.add('is-loading');
+    return tsFetch(view, rp).then(function (data) {
+      if (data && data.ok && data.html !== undefined) {
+        liveEl.innerHTML = data.html;
+        applyChecklistPayload(data);
+      }
+    }).catch(function () {}).then(function () {
+      liveEl.classList.remove('is-loading');
+    });
+  }
+  function getOpenExpandBody() {
+    var row = shell.querySelector('.ts-checklist-expand-row:not([hidden])');
+    return row ? row.querySelector('[data-ts-expand-body]') : null;
+  }
+  function syncTsDesk(silent) {
+    if (tsSyncBusy || document.hidden) return Promise.resolve();
+    tsSyncBusy = true;
+    var active = getActivePaneKey();
+    var jobs = [refreshChecklistStats()];
+    if (active === 'listings' || active === 'id-queue' || active === 'reports') {
+      var pane = shell.querySelector('.admin-pane.is-active .ts-live-pane-body');
+      jobs.push(refreshLivePaneBody(pane, !!silent));
+    }
+    var expandBody = getOpenExpandBody();
+    if (expandBody) {
+      var wrap = expandBody.closest('.ts-checklist-expand');
+      var viewKey = wrap ? wrap.getAttribute('data-ts-expand-view') : '';
+      if (viewKey) {
+        jobs.push(tsFetch(viewKey, 'checklist').then(function (data) {
+          if (data && data.ok && data.html !== undefined) {
+            expandBody.innerHTML = data.html;
+            applyChecklistPayload(data);
+          }
+        }));
+      }
+    }
+    return Promise.all(jobs).finally(function () { tsSyncBusy = false; });
+  }
   function closeAllChecklistExpands() {
     shell.querySelectorAll('.ts-checklist-expand-row').forEach(function (row) {
       row.hidden = true;
     });
-    shell.querySelectorAll('[data-ts-expand]').forEach(function (btn) {
+    shell.querySelectorAll('[data-ts-expand-view]').forEach(function (btn) {
       btn.setAttribute('aria-expanded', 'false');
       btn.classList.remove('is-open');
     });
@@ -596,43 +628,37 @@ $idQueue = $idData['queue'];
       row.classList.remove('is-expanded');
     });
   }
-  function fillExpandBody(body, paneKey) {
-    paneKey = alias[paneKey] || paneKey;
-    if (!body || body.getAttribute('data-ts-filled') === paneKey) return;
-    var pane = shell.querySelector('.admin-pane[data-pane="' + paneKey + '"]');
-    if (!pane) return;
-    body.innerHTML = '';
-    var children = pane.children;
-    for (var c = 0; c < children.length; c++) {
-      if (children[c].classList && children[c].classList.contains('admin-pane-head')) continue;
-      body.appendChild(children[c].cloneNode(true));
-    }
-    body.querySelectorAll('input[name="return_pane"]').forEach(function (inp) {
-      inp.value = 'checklist';
+  function loadExpandBody(body, viewKey, silent) {
+    if (!body) return Promise.resolve();
+    if (!silent) body.innerHTML = '<p class="hint">Loading latest from database…</p>';
+    return tsFetch(viewKey, 'checklist').then(function (data) {
+      if (!data || !data.ok) throw new Error('load failed');
+      body.innerHTML = data.html || '<p class="hint">Nothing to show.</p>';
+      applyChecklistPayload(data);
+    }).catch(function () {
+      if (!silent) body.innerHTML = '<p class="hint">Could not load live data. Refresh the page and try again.</p>';
     });
-    body.setAttribute('data-ts-filled', paneKey);
   }
   function toggleChecklistExpand(btn) {
     var targetKey = btn.getAttribute('data-ts-expand-target') || '';
-    var paneKey = btn.getAttribute('data-ts-expand') || '';
+    var viewKey = btn.getAttribute('data-ts-expand-view') || '';
     var panel = document.getElementById(targetKey + '-panel');
     if (!panel) return;
     var isOpen = !panel.hidden;
     closeAllChecklistExpands();
     if (isOpen) return;
     var body = panel.querySelector('[data-ts-expand-body]');
-    fillExpandBody(body, paneKey);
     panel.hidden = false;
     btn.setAttribute('aria-expanded', 'true');
     btn.classList.add('is-open');
     var mainRow = shell.querySelector('[data-checklist-row="' + targetKey + '"]');
     if (mainRow) mainRow.classList.add('is-expanded');
-    try {
-      panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    } catch (e) {}
+    loadExpandBody(body, viewKey, false).then(function () {
+      try { panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+    });
   }
   shell.addEventListener('click', function (e) {
-    var expandBtn = e.target.closest('[data-ts-expand]');
+    var expandBtn = e.target.closest('[data-ts-expand-view]');
     if (expandBtn && shell.contains(expandBtn)) {
       e.preventDefault();
       e.stopPropagation();
@@ -643,12 +669,26 @@ $idQueue = $idData['queue'];
     if (closeBtn && shell.contains(closeBtn)) {
       e.preventDefault();
       closeAllChecklistExpands();
+      refreshChecklistStats();
     }
   });
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') closeAllChecklistExpands();
+    if (e.key === 'Escape') {
+      closeAllChecklistExpands();
+      refreshChecklistStats();
+    }
   });
+  var origShowPane = showPane;
+  showPane = function (key) {
+    origShowPane(key);
+    syncTsDesk(false);
+  };
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) syncTsDesk(true);
+  });
+  setInterval(function () { syncTsDesk(true); }, TS_SYNC_MS);
 
   openPane(currentPaneKey(), { initial: true });
+  syncTsDesk(false);
 })();
 </script>

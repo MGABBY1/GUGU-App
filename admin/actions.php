@@ -322,8 +322,8 @@ try {
             portalFlash($modStatus === 'approved'
                 ? 'Approved — ' . guguBusinessLabel($biz) . ' post is live'
                 : guguBusinessLabel($biz) . ' listing updated');
-            if ($actorRole === 3) {
-                portalRedirect('listings');
+            if (portalIsSupportDeskContext()) {
+                portalRedirect();
             }
             portalRedirect($biz === 'job' ? 'job-approvals' : 'item-approvals');
 
@@ -395,8 +395,8 @@ try {
                 ]);
                 portalFlash('Marked as paid (' . $feePaid . ' RWF). Approve to publish.');
             }
-            if ($actorRole === 3) {
-                portalRedirect('listings');
+            if (portalIsSupportDeskContext()) {
+                portalRedirect();
             }
             portalRedirect($biz === 'job' ? 'job-approvals' : 'item-approvals');
 
@@ -430,6 +430,9 @@ try {
             ')->execute([$status, $actorId, $note ?: null, $reportId]);
             writeAuditLog($actorId, 'resolve-report', 'report', $reportId, ['status' => $status]);
             portalFlash('Report updated');
+            if (portalIsSupportDeskContext()) {
+                portalRedirect();
+            }
             portalRedirect('reports');
 
         case 'suspend-seller':
@@ -450,6 +453,9 @@ try {
             $db->prepare('UPDATE users SET account_status = "suspended" WHERE id = ?')->execute([$sellerId]);
             writeAuditLog($actorId, 'set-status', 'user', $sellerId, ['account_status' => 'suspended']);
             portalFlash('Seller suspended');
+            if (portalIsSupportDeskContext()) {
+                portalRedirect();
+            }
             portalRedirect('listings');
 
         case 'ban-seller':
@@ -470,6 +476,9 @@ try {
             $db->prepare('UPDATE users SET account_status = "banned" WHERE id = ?')->execute([$sellerId]);
             writeAuditLog($actorId, 'set-status', 'user', $sellerId, ['account_status' => 'banned']);
             portalFlash('Fraudulent account banned');
+            if (portalIsSupportDeskContext()) {
+                portalRedirect();
+            }
             portalRedirect('listings');
 
         case 'review-id':
@@ -508,6 +517,9 @@ try {
                    ->execute([$reason !== '' ? $reason : 'Document unclear — resubmit', $userId]);
                 writeAuditLog($actorId, 'review-id', 'user', $userId, ['id_status' => 'rejected', 'reason' => $reason]);
                 portalFlash('Member ID rejected');
+            }
+            if (portalIsSupportDeskContext()) {
+                portalRedirect();
             }
             portalRedirect('id-queue');
 
